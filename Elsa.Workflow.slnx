@@ -12,4 +12,8 @@
   <Folder Name="/src/Infrastructure/">
     <Project Path="src/Infrastructure/Elsa.Workflow.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Functional/">
+    <Project Path="tests/Functional/Elsa.Workflow.Functional.Tests.csproj" />
+  </Folder>
 </Solution>

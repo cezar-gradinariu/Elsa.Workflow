@@ -79,3 +79,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Required for WebApplicationFactory<Program> in functional tests.
+public partial class Program { }

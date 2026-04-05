@@ -12,7 +12,15 @@
       "Read(//c/Users/cezar/.nuget/packages/elsa.workflows.core/3.6.0/lib/net10.0/**)",
       "Read(//c/Users/cezar/.nuget/packages/elsa/3.6.0/lib/net10.0/**)",
       "Read(//c/Users/cezar/.nuget/packages/**)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(docker info:*)",
+      "Bash(docker context:*)",
+      "Bash(DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine dotnet test tests/Functional/Elsa.Workflow.Functional.Tests.csproj --no-build --logger \"console;verbosity=normal\")",
+      "Read(//c/Users/cezar/**)",
+      "Bash(docker run:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\cezar"
     ]
   }
 }
