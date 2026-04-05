@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/cezar/AppData/Local/Temp/claude/c--Users-cezar-Downloads-Elsa-Workflow/43ed0e89-eb40-4536-ad17-29607474d69d/tasks/**)",
+      "Bash(dotnet add:*)",
+      "Read(//c/Users/cezar/.nuget/packages/elsa.workflows.runtime/3.6.0/**)",
+      "Bash(dotnet script:*)",
+      "Read(//c/Users/cezar/.nuget/packages/elsa.workflows.runtime//**)",
+      "Read(//tmp/**)",
+      "Bash(dotnet run:*)",
+      "Read(//c/Users/cezar/.nuget/packages/elsa.workflows.management/3.6.0/lib/net10.0/**)",
+      "Read(//c/Users/cezar/.nuget/packages/elsa.workflows.core/3.6.0/lib/net10.0/**)",
+      "Read(//c/Users/cezar/.nuget/packages/elsa/3.6.0/lib/net10.0/**)",
+      "Read(//c/Users/cezar/.nuget/packages/**)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

@@ -46,27 +46,52 @@
 
 ## 5. Functional Requirements
 
-> _This section is to be completed as bounded contexts are defined. Use the structure below for each feature area._
-
-### 5.1 \[Feature Area TBD\]
+### 5.1 Fulfilment Order Management
 
 #### User Stories
 
 | ID | As a… | I want to… | So that… |
 |----|-------|-----------|---------|
-| US-001 | | | |
+| US-001 | Customer | Submit a new fulfilment order via `POST /api/fulfilments` | The system reserves picking capacity and begins processing |
+| US-002 | Customer | Retrieve a fulfilment order by ID via `GET /api/fulfilments/{id}` | I can track its current status and allocation state |
+| US-003 | Customer | Cancel a fulfilment order via `DELETE /api/fulfilments/{id}` | An unwanted order is stopped and its workflow is terminated |
 
 #### Acceptance Criteria
 
 | ID | Criteria |
 |----|---------|
-| AC-001 | |
+| AC-001 | `POST /api/fulfilments` returns `200 OK` with no body when all inputs are valid and the order is successfully created |
+| AC-002 | `POST /api/fulfilments` returns `400 Bad Request` (ProblemDetails) when required fields are missing or malformed |
+| AC-003 | `POST /api/fulfilments` returns `409 Conflict` (ProblemDetails) when a `FulfilmentOrderId` that already exists is submitted |
+| AC-004 | `POST /api/fulfilments` returns `422 Unprocessable Entity` (ProblemDetails) for domain violations (negative quantities, duplicate line numbers, empty order lines) |
+| AC-005 | `GET /api/fulfilments/{id}` returns `200 OK` with the fulfilment order payload |
+| AC-006 | `GET /api/fulfilments/{id}` returns `404 Not Found` (ProblemDetails) when the ID does not exist |
+| AC-007 | `DELETE /api/fulfilments/{id}` returns `204 No Content` on success |
+| AC-008 | `DELETE /api/fulfilments/{id}` cancels the associated Elsa workflow instance |
+| AC-009 | All error responses use `application/problem+json` content type — see [ADR-011](adr/011-problem-details-error-responses.md) |
+| AC-010 | On successful creation, an Elsa workflow is started with `FulfilmentOrderId` as the correlation ID |
+| AC-011 | The aggregate is persisted to MongoDB with optimistic concurrency (`version` field) |
 
 #### Business Rules
 
 | ID | Rule |
 |----|------|
-| BR-001 | |
+| BR-001 | `FulfilmentOrderId` must be a non-empty GUID; must be unique across all orders |
+| BR-002 | `StoreId`, `OrderId` are required non-blank strings |
+| BR-003 | `OrderLines` must contain at least one entry |
+| BR-004 | Each `OrderLineNo` must be unique within the order (no duplicates) |
+| BR-005 | `ExpectedQuantity` must be ≥ 0 for every order line |
+| BR-006 | `UnitOfMeasure` must be `Ea` or `Kg` |
+| BR-007 | `CustomerSupplyInstructions` is optional; max 256 characters |
+| BR-008 | `OrderId` is carried for traceability only — it is not used in business logic processing |
+
+#### Workflow Lifecycle (first iteration)
+
+| Step | Description | Status |
+|------|-------------|--------|
+| 1 | Workflow started on order creation (same `FulfilmentOrderId` = correlation ID) | Implemented |
+| 2 | Call OFA (OrderFulfilmentAllocator) — assign order lines to sub-stores | Documented — see [ADR-013](adr/013-ofa-integration-workflow-step.md) |
+| 3 | `ApplyAllocation(...)` on aggregate; workflow suspends via bookmark | Schema pending confirmation (OQ-1 in ADR-013) |
 
 ---
 
@@ -74,9 +99,10 @@
 
 | # | Question | Owner | Due |
 |---|----------|-------|-----|
-| Q1 | How are workflows triggered — HTTP endpoint, timer, domain event? | TBD | TBD |
-| Q2 | JWT authority — in-house Keycloak, Azure AD, Auth0? | TBD | TBD |
-| Q3 | Specific bounded contexts / aggregate names? | TBD | TBD |
+| Q1 | JWT authority — in-house Keycloak, Azure AD, Auth0? | TBD | TBD |
+| Q2 | OFA allocation model: fully-allocated per line (total = expected) or partial allocation allowed (total ≤ expected)? — see ADR-013 OQ-1 | Business | **Blocking ADR-013 implementation** |
+| Q3 | Does OFA ever return lines not in the request? Ignore or reject? | Business | Awaiting answer |
+| Q4 | OFA exhausts all retries — auto-cancel workflow or require operator intervention via Elsa Alterations API? | Product | Awaiting answer |
 
 ---
 

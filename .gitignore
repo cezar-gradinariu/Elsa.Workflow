@@ -1,0 +1,77 @@
+## .NET / C# gitignore — standard Visual Studio / dotnet CLI template
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.vcxproj.filters
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/
+!**/[Pp]ackages/build/
+.nuget/
+nuget.config
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# dotnet publish / test results
+publish/
+TestResults/
+[Cc]overage*/
+*.coverage
+*.coveragexml
+*.trx
+
+# Entity Framework migrations — keep the files, ignore the snapshots if desired
+# (uncomment if you don't want to track snapshot)
+# **/Migrations/*.Designer.cs
+
+# Roslyn analyzers
+*.AnalyzerData/
+
+# MSBuild
+*.binlog
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib
+*.pidb
+*.svclog
+*.scc
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Secrets / environment
+*.env
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
