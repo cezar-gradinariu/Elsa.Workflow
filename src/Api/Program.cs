@@ -1,8 +1,6 @@
 using Elsa.Extensions;
-using Elsa.Persistence.MongoDb.Extensions;
-using Elsa.Persistence.MongoDb.Modules.Management;
-using Elsa.Persistence.MongoDb.Modules.Runtime;
 using Elsa.Workflow.Api.Middleware;
+using Elsa.Workflow.Infrastructure.Extensions;
 using Elsa.Workflow.Application.Commands;
 using Elsa.Workflow.Application.Queries;
 using Elsa.Workflow.Application.Workflows;
@@ -41,15 +39,9 @@ var databaseName     = builder.Configuration["MongoDB:DatabaseName"]!;
 
 builder.Services.AddElsa(elsa =>
 {
-    // Global MongoDB persistence for Elsa — sets up connection and shared options.
-    elsa.UseMongoDb(connectionString, opts => opts.DatabaseName = databaseName);
-
-    // Enable MongoDB stores for workflow definitions and instances.
-    // The parameterless Action<> overload reuses the global MongoDb connection above.
-    elsa.UseWorkflowManagement(mgmt => mgmt.UseMongoDb(_ => { }));
-
-    // Enable MongoDB stores for workflow runtime state, bookmarks, triggers, etc.
-    elsa.UseWorkflowRuntime(rt => rt.UseMongoDb(_ => { }));
+    // MongoDB persistence for Elsa — wired via Infrastructure to keep
+    // Elsa.Persistence.MongoDb references out of the Api layer (ADR-001/003).
+    elsa.UseElsaMongoDb(connectionString, databaseName);
 
     // Register code-first workflow definitions from the Application assembly.
     elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();

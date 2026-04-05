@@ -17,7 +17,9 @@
       "Bash(docker context:*)",
       "Bash(DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine dotnet test tests/Functional/Elsa.Workflow.Functional.Tests.csproj --no-build --logger \"console;verbosity=normal\")",
       "Read(//c/Users/cezar/**)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "Bash(cat /c/Users/cezar/.nuget/packages/elsa.persistence.mongodb/3.6.0/*.nuspec)",
+      "Bash(cat /c/Users/cezar/.nuget/packages/elsa.workflows.runtime/3.6.0/*.nuspec)"
     ],
     "additionalDirectories": [
       "C:\\Users\\cezar"
