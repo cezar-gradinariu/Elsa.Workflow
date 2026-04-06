@@ -1,4 +1,6 @@
 using Elsa.Extensions;
+using Microsoft.OpenApi;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using Elsa.Studio.Contracts;
 using Elsa.Studio.Core.BlazorServer.Extensions;
 using Elsa.Studio.Dashboard.Extensions;
@@ -38,7 +40,17 @@ public static class ProgramStartup
     {
         var connectionString = config["MongoDB:ConnectionString"]!;
         var databaseName     = config["MongoDB:DatabaseName"]!;
-        var elsaApiUrl       = config["ElsaApi:BaseUrl"] ?? "http://localhost:5158/elsa/api";
+
+        // Elsa Studio's Refit clients already append "/elsa/api/..." to the base URL,
+        // so BackendApiConfig.Url must be the server root only — not "{base}/elsa/api".
+        // Derive it from the server's own listening address so the correct port is used
+        // regardless of which port Kestrel or IIS Express picked at launch.
+        var elsaApiUrl = (config["ElsaApi:BaseUrl"] is { Length: > 0 } explicit_)
+            ? explicit_.TrimEnd('/')
+            : (config["urls"] ?? config["ASPNETCORE_URLS"] ?? "http://localhost:5158")
+                .Split(';')
+                .First()
+                .Trim();
 
         // ─── MongoDB ─────────────────────────────────────────────────────────────
         services.AddSingleton<IMongoClient>(_ => new MongoClient(connectionString));
@@ -114,8 +126,19 @@ public static class ProgramStartup
         services.AddControllers();
         services.AddProblemDetails();
         services.AddExceptionHandler<DomainExceptionHandler>();
-        services.AddEndpointsApiExplorer();
-        services.AddSwaggerGen();
+        services.AddSwaggerGen(c =>
+        {
+            // Elsa's FastEndpoints register their own IApiDescriptionProvider that
+            // feeds into SwaggerGen regardless of AddEndpointsApiExplorer. Its generic
+            // types (e.g. ListResponse<T> with two different T from the same namespace)
+            // produce identical short schema IDs and cause a SwaggerGeneratorException.
+            // Using the full CLR name guarantees uniqueness across all registered types.
+            c.CustomSchemaIds(t => t.FullName!.Replace("+", "."));
+
+            // Remove all /elsa/* paths from the final document so only our own
+            // FulfilmentsController endpoints appear in the Swagger UI.
+            c.DocumentFilter<ExcludeElsaPathsDocumentFilter>();
+        });
     }
 
     /// <summary>
@@ -130,8 +153,16 @@ public static class ProgramStartup
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
-            app.UseSwaggerUI();
+            app.UseSwaggerUI(c =>
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "Fulfilment API v1"));
         }
+
+        // Authentication must run before FastEndpoints so context.User is populated
+        // when Elsa's endpoints inspect it. Without explicit placement WebApplication
+        // may add these after UseFastEndpoints, causing every Elsa API call to see an
+        // unauthenticated principal and return 403 before reaching our AllowAllAuthorizationHandler.
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         // Elsa REST API (FastEndpoints).
         app.UseWorkflowsApi("elsa/api");
@@ -197,5 +228,19 @@ file sealed class PassThroughAuthHandler(
         var principal = new System.Security.Claims.ClaimsPrincipal(identity);
         var ticket    = new AuthenticationTicket(principal, SchemeName);
         return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
+/// <summary>
+/// Removes all <c>/elsa/*</c> paths from the generated OpenAPI document so that
+/// Elsa's ~80 FastEndpoints routes do not appear in the Swagger UI — only the
+/// application's own controllers are shown.
+/// </summary>
+file sealed class ExcludeElsaPathsDocumentFilter : IDocumentFilter
+{
+    public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
+    {
+        foreach (var path in swaggerDoc.Paths.Keys.Where(p => p.StartsWith("/elsa/")).ToList())
+            swaggerDoc.Paths.Remove(path);
     }
 }

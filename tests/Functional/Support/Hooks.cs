@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using DotNet.Testcontainers.Builders;
 using MongoDB.Driver;
 using Reqnroll;
@@ -12,9 +11,7 @@ namespace Elsa.Workflow.Functional.Tests.Support;
 ///
 /// Container lifecycle:
 ///   [BeforeTestRun]  — start a single MongoDB container shared by all scenarios.
-///                      When a debugger is attached, also start Elsa Studio on a real
-///                      Kestrel port so the UI can be browsed while breakpoints are active.
-///   [AfterTestRun]   — stop and dispose the container (and Studio host if running).
+///   [AfterTestRun]   — stop and dispose the container.
 ///
 /// Factory lifecycle:
 ///   [BeforeScenario] — create a per-scenario WebApplicationFactory pointing at its
@@ -33,20 +30,11 @@ namespace Elsa.Workflow.Functional.Tests.Support;
 ///
 ///   Scenarios run sequentially (Reqnroll default), so environment variable mutation
 ///   is safe. The vars are cleared in AfterScenario to avoid leaking into the OS.
-///
-/// Elsa Studio debug access:
-///   When Debugger.IsAttached a StudioKestrelHost is started in BeforeTestRun
-///   (shared across all scenarios). It uses a fixed database name so the Studio has
-///   a stable view; per-scenario databases are still isolated in FulfilmentApiFactory.
-///   The Studio URL is printed to the console once at startup.
 /// </summary>
 [Binding]
 public sealed class Hooks(IObjectContainer objectContainer)
 {
     private static MongoDbContainer _mongo = null!;
-
-    // Studio host is run-scoped (one per test run) when a debugger is attached.
-    private static StudioProcess? _studioFactory;
 
     // -------------------------------------------------------------------------
     // Test-run scope
@@ -61,15 +49,11 @@ public sealed class Hooks(IObjectContainer objectContainer)
             .Build();
 
         await _mongo.StartAsync();
-
-        if (Debugger.IsAttached)
-            StartStudioHost();
     }
 
     [AfterTestRun]
     public static async Task StopMongoContainerAsync()
     {
-        _studioFactory?.Dispose();
         if (_mongo is not null) await _mongo.DisposeAsync();
     }
 
@@ -117,27 +101,5 @@ public sealed class Hooks(IObjectContainer objectContainer)
         // Clean up so the OS environment doesn't carry test values.
         Environment.SetEnvironmentVariable("MongoDB__ConnectionString", null);
         Environment.SetEnvironmentVariable("MongoDB__DatabaseName", null);
-    }
-
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
-    private static void StartStudioHost()
-    {
-        // Studio uses a shared "debug-studio" database — separate from per-scenario
-        // databases — so the Studio session stays stable across scenario boundaries.
-        const string studioDb = "debug-studio";
-
-        _studioFactory = new StudioProcess(_mongo.GetConnectionString(), studioDb);
-
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine();
-        Console.WriteLine($"  ╔══════════════════════════════════════════════════╗");
-        Console.WriteLine($"  ║  ELSA STUDIO  {_studioFactory.StudioUrl,-35}║");
-        Console.WriteLine($"  ║  ELSA API     {_studioFactory.StudioUrl}/elsa/api   ║");
-        Console.WriteLine($"  ╚══════════════════════════════════════════════════╝");
-        Console.WriteLine();
-        Console.ResetColor();
     }
 }

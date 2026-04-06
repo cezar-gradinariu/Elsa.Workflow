@@ -30,7 +30,8 @@
       "Bash(mkdir -p /tmp/reflect)",
       "Bash(taskkill //F //IM dotnet.exe //T)",
       "Bash(ls -t /c/Users/cezar/AppData/Local/Temp/studio-*.log)",
-      "Bash(xargs sh:*)"
+      "Bash(xargs sh:*)",
+      "Bash(dotnet list:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\cezar"

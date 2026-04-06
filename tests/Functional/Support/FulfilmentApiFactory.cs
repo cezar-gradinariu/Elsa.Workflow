@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,11 +29,6 @@ namespace Elsa.Workflow.Functional.Tests.Support;
 ///   serializers. Running multiple factories in the same process throws on the second
 ///   registration. We remove that service so only the first registration persists —
 ///   it remains correct for all subsequent scenarios.
-///
-/// Elsa Studio debug access:
-///   When a debugger is attached, Hooks.cs creates a separate <see cref="StudioKestrelHost"/>
-///   that runs the full app stack on a real Kestrel port, giving browsers direct access
-///   to Elsa Studio. This factory stays on TestServer so test HTTP clients work normally.
 /// </summary>
 public sealed class FulfilmentApiFactory(string mongoConnectionString, string databaseName)
     : WebApplicationFactory<Program>
@@ -44,7 +36,6 @@ public sealed class FulfilmentApiFactory(string mongoConnectionString, string da
     // Elsa's ConfigureMongoDbSerializers hosted service registers process-wide BSON
     // serializers. It must run exactly once per process (the first factory), then be
     // suppressed for all subsequent factories to prevent duplicate-registration throws.
-    // StudioKestrelHost also participates in this protocol.
     internal static volatile bool BsonSerializersInitialized;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -107,121 +98,5 @@ public sealed class FulfilmentApiFactory(string mongoConnectionString, string da
                 BsonSerializersInitialized = true;
             }
         });
-    }
-}
-
-/// <summary>
-/// Launches the Api as a separate OS process so Elsa Studio is accessible in a
-/// browser during debugging without being frozen by debugger breakpoints.
-///
-/// Running in-process (StudioKestrelHost) does not work for interactive debugging:
-/// when a breakpoint fires the .NET debugger suspends ALL managed threads in the
-/// process — including Kestrel's IO thread pool — so every browser request hangs.
-/// A child process has its own thread pool that is entirely unaffected by the
-/// parent's breakpoints.
-///
-/// The Api binary is already compiled into the test output directory because the
-/// test project has a ProjectReference to it. We launch it with <c>dotnet exec</c>
-/// and inject the Testcontainers MongoDB URL + Studio backend URL via environment
-/// variables so the child process reads them as highest-priority configuration.
-///
-/// Lifecycle: call Start() once per test run; Dispose() kills the child process.
-/// </summary>
-public sealed class StudioProcess : IDisposable
-{
-    private readonly Process      _process;
-    private readonly StreamWriter _logWriter;
-
-    public string StudioUrl { get; }
-
-    public StudioProcess(string mongoConnectionString, string databaseName)
-    {
-        var port  = AllocateFreePort();
-        StudioUrl = $"http://localhost:{port}";
-
-        var urlBuilder = new MongoUrlBuilder(mongoConnectionString)
-        {
-            DatabaseName         = databaseName,
-            AuthenticationSource = "admin"
-        };
-        var connectionStringWithDb = urlBuilder.ToMongoUrl().ToString();
-
-        // The Api DLL is in the same directory as the test binary because the test
-        // project holds a ProjectReference to the Api project.
-        var apiDll = Path.Combine(AppContext.BaseDirectory, "Elsa.Workflow.Api.dll");
-
-        var psi = new ProcessStartInfo("dotnet", $"exec \"{apiDll}\"")
-        {
-            UseShellExecute  = false,
-            CreateNoWindow   = true,
-            // ASP.NET Core uses '__' as the hierarchy separator for env-var config.
-            Environment =
-            {
-                ["ASPNETCORE_ENVIRONMENT"]   = "Development",
-                ["ASPNETCORE_URLS"]          = $"http://127.0.0.1:{port}",
-                ["MongoDB__ConnectionString"] = connectionStringWithDb,
-                ["MongoDB__DatabaseName"]    = databaseName,
-                ["ElsaApi__BaseUrl"]         = $"http://127.0.0.1:{port}/elsa/api",
-            }
-        };
-
-        var logFile = Path.Combine(Path.GetTempPath(), $"studio-{port}.log");
-        _logWriter                 = new StreamWriter(logFile, append: false) { AutoFlush = true };
-        psi.RedirectStandardOutput = true;
-        psi.RedirectStandardError  = true;
-
-        _process = Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start Studio process.");
-
-        _process.OutputDataReceived += (_, e) => { if (e.Data != null) _logWriter.WriteLine(e.Data); };
-        _process.ErrorDataReceived  += (_, e) => { if (e.Data != null) _logWriter.WriteLine("[ERR] " + e.Data); };
-        _process.BeginOutputReadLine();
-        _process.BeginErrorReadLine();
-
-        Console.WriteLine($"[Studio] log → {logFile}");
-
-        WaitUntilReady(port);
-    }
-
-    public void Dispose()
-    {
-        if (!_process.HasExited)
-        {
-            _process.Kill(entireProcessTree: true);
-            _process.WaitForExit(5_000);
-        }
-        _process.Dispose();
-        _logWriter.Dispose();
-    }
-
-    /// <summary>
-    /// Polls the health endpoint until the process is ready or times out.
-    /// </summary>
-    private static void WaitUntilReady(int port, int timeoutMs = 30_000)
-    {
-        using var http    = new HttpClient();
-        var deadline      = DateTime.UtcNow.AddMilliseconds(timeoutMs);
-        var url           = $"http://127.0.0.1:{port}/elsa/api/workflow-definitions?page=0&pageSize=1";
-
-        while (DateTime.UtcNow < deadline)
-        {
-            Thread.Sleep(500);
-            try
-            {
-                var response = http.GetAsync(url).GetAwaiter().GetResult();
-                if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    return;
-            }
-            catch { /* not ready yet */ }
-        }
-    }
-
-    private static int AllocateFreePort()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
     }
 }
