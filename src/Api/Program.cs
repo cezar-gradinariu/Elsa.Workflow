@@ -1,74 +1,10 @@
-using Elsa.Extensions;
-using Elsa.Workflow.Api.Middleware;
-using Elsa.Workflow.Infrastructure.Extensions;
-using Elsa.Workflow.Application.Commands;
-using Elsa.Workflow.Application.Queries;
-using Elsa.Workflow.Application.Workflows;
-using Elsa.Workflow.Domain.Repositories;
-using Elsa.Workflow.Infrastructure.Repositories;
-using MongoDB.Driver;
+using Elsa.Workflow.Api;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// ─── MongoDB ─────────────────────────────────────────────────────────────────
-builder.Services.AddSingleton<IMongoClient>(_ =>
-    new MongoClient(builder.Configuration["MongoDB:ConnectionString"]));
-
-builder.Services.AddScoped<IMongoDatabase>(sp =>
-    sp.GetRequiredService<IMongoClient>()
-      .GetDatabase(builder.Configuration["MongoDB:DatabaseName"]));
-
-// ─── Domain / Application ────────────────────────────────────────────────────
-builder.Services.AddScoped<IFulfilmentOrderRepository, FulfilmentOrderRepository>();
-
-builder.Services.AddScoped<
-    ICommandHandler<CreateFulfilmentOrderCommand>,
-    CreateFulfilmentOrderCommandHandler>();
-
-builder.Services.AddScoped<
-    ICommandHandler<DeleteFulfilmentOrderCommand>,
-    DeleteFulfilmentOrderCommandHandler>();
-
-builder.Services.AddScoped<
-    IQueryHandler<GetFulfilmentOrderQuery, GetFulfilmentOrderResult>,
-    GetFulfilmentOrderQueryHandler>();
-
-// ─── Elsa Workflows ──────────────────────────────────────────────────────────
-var connectionString = builder.Configuration["MongoDB:ConnectionString"]!;
-var databaseName     = builder.Configuration["MongoDB:DatabaseName"]!;
-
-builder.Services.AddElsa(elsa =>
-{
-    // MongoDB persistence for Elsa — wired via Infrastructure to keep
-    // Elsa.Persistence.MongoDb references out of the Api layer (ADR-001/003).
-    elsa.UseElsaMongoDb(connectionString, databaseName);
-
-    // Register code-first workflow definitions from the Application assembly.
-    elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();
-});
-
-// ─── API / ProblemDetails ────────────────────────────────────────────────────
-builder.Services.AddControllers();
-builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<DomainExceptionHandler>();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+ProgramStartup.ConfigureServices(builder.Services, builder.Configuration);
 
 var app = builder.Build();
-
-// ProblemDetails middleware — maps all unhandled exceptions and status codes
-// to RFC 9457 problem+json (ADR-011).
-app.UseExceptionHandler();
-app.UseStatusCodePages();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-app.UseAuthorization();
-app.MapControllers();
+ProgramStartup.ConfigurePipeline(app);
 
 app.Run();
 

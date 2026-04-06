@@ -19,7 +19,18 @@
       "Read(//c/Users/cezar/**)",
       "Bash(docker run:*)",
       "Bash(cat /c/Users/cezar/.nuget/packages/elsa.persistence.mongodb/3.6.0/*.nuspec)",
-      "Bash(cat /c/Users/cezar/.nuget/packages/elsa.workflows.runtime/3.6.0/*.nuspec)"
+      "Bash(cat /c/Users/cezar/.nuget/packages/elsa.workflows.runtime/3.6.0/*.nuspec)",
+      "Bash(dotnet package:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(sort find:*)",
+      "Bash(mkdir -p /tmp/reflect)",
+      "Bash(taskkill //F //IM dotnet.exe //T)",
+      "Bash(ls -t /c/Users/cezar/AppData/Local/Temp/studio-*.log)",
+      "Bash(xargs sh:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\cezar"
