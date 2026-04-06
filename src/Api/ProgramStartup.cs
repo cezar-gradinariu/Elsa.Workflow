@@ -41,16 +41,17 @@ public static class ProgramStartup
         var connectionString = config["MongoDB:ConnectionString"]!;
         var databaseName     = config["MongoDB:DatabaseName"]!;
 
-        // Elsa Studio's Refit clients already append "/elsa/api/..." to the base URL,
-        // so BackendApiConfig.Url must be the server root only — not "{base}/elsa/api".
-        // Derive it from the server's own listening address so the correct port is used
-        // regardless of which port Kestrel or IIS Express picked at launch.
+        // Elsa.Api.Client Refit interfaces use routes like "/features/installed".
+        // Since this app hosts the Elsa workflows API under "/elsa/api", the backend
+        // URL must include that prefix. When no explicit value is configured, derive the
+        // server root from the current listener configuration and append "/elsa/api".
         var elsaApiUrl = (config["ElsaApi:BaseUrl"] is { Length: > 0 } explicit_)
             ? explicit_.TrimEnd('/')
-            : (config["urls"] ?? config["ASPNETCORE_URLS"] ?? "http://localhost:5158")
+            : $"{(config["urls"] ?? config["ASPNETCORE_URLS"] ?? "http://localhost:5158")
                 .Split(';')
                 .First()
-                .Trim();
+                .Trim()
+                .TrimEnd('/')}/elsa/api";
 
         // ─── MongoDB ─────────────────────────────────────────────────────────────
         services.AddSingleton<IMongoClient>(_ => new MongoClient(connectionString));
@@ -161,14 +162,20 @@ public static class ProgramStartup
         // when Elsa's endpoints inspect it. Without explicit placement WebApplication
         // may add these after UseFastEndpoints, causing every Elsa API call to see an
         // unauthenticated principal and return 403 before reaching our AllowAllAuthorizationHandler.
+        // .NET 10: Blazor scripts are physical files. MapStaticAssets() handles
+        // optimised delivery; UseStaticFiles() covers _content/* from packages.
+        // UseRouting() must be explicit so Blazor hub and static asset endpoints
+        // are reachable before FastEndpoints consumes the routing pipeline.
+        app.MapStaticAssets();
+        app.UseRouting();
+        app.UseStaticFiles();
+
         app.UseAuthentication();
         app.UseAuthorization();
 
         // Elsa REST API (FastEndpoints).
         app.UseWorkflowsApi("elsa/api");
 
-        // Elsa Studio (Blazor Server).
-        app.UseStaticFiles();
         app.MapControllers();
         app.MapBlazorHub();
         app.MapFallbackToPage("/_Host");
