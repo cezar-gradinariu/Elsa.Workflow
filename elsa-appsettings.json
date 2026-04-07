@@ -1,0 +1,57 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Elsa.Mediator": "Warning",
+      "MassTransit": "Warning",
+      "Microsoft.Extensions.Http": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "System.Net.Http": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "MongoDB": {
+    "ConnectionString": "mongodb://admin:admin@mongodb:27017",
+    "DatabaseName": "elsa_ddd_db"
+  },
+  "Hosting": {
+    "BasePath": ""
+  },
+  "Identity": {
+    "Tokens": {
+      "SigningKey": "c7dc81876a782d502084763fa322429fca015941eac90ce8ca7ad95fc8752035",
+      "AccessTokenLifetime": "1:00:00:00",
+      "RefreshTokenLifetime": "1:00:10:00"
+    },
+    "Roles": [
+      {
+        "Id": "admin",
+        "Name": "Administrator",
+        "Permissions": [
+          "*"
+        ]
+      }
+    ],
+    "Users": [
+      {
+        "Id": "a2323f46-42db-4e15-af8b-94238717d817",
+        "Name": "admin",
+        "HashedPassword": "TfKzh9RLix6FPcCNeHLkGrysFu3bYxqzGqduNdi8v1U=",
+        "HashedPasswordSalt": "JEy9kBlhHCNsencitRHlGxmErmSgY+FVyMJulCH27Ds=",
+        "Roles": [
+          "admin"
+        ]
+      }
+    ]
+  },
+  "Http": {
+    "BaseUrl": "http://localhost:5158",
+    "BasePath": "/elsa/api"
+  },
+  "CorsPolicy": {
+    "Origins": ["*"],
+    "Methods": ["*"],
+    "Headers": ["*"]
+  }
+}

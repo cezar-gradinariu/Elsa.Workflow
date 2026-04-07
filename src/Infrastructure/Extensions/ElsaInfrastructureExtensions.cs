@@ -12,12 +12,13 @@ public static class ElsaInfrastructureExtensions
     /// Configures Elsa to use MongoDB for workflow management and runtime state.
     /// Keeps Elsa.Persistence.MongoDb references contained within the Infrastructure layer.
     /// </summary>
-    public static IModule UseElsaMongoDb(
-        this IModule elsa,
-        string connectionString,
-        string databaseName)
+    /// <summary>
+    /// Configures Elsa to use MongoDB for workflow management and runtime state.
+    /// The database name must be part of the connection string (e.g. .../elsa_ddd_db?authSource=admin).
+    /// </summary>
+    public static IModule UseElsaMongoDb(this IModule elsa, string connectionString)
     {
-        elsa.UseMongoDb(connectionString, opts => opts.DatabaseName = databaseName);
+        elsa.UseMongoDb(connectionString);
         elsa.UseWorkflowManagement(mgmt => mgmt.UseMongoDb(_ => { }));
         elsa.UseWorkflowRuntime(rt => rt.UseMongoDb(_ => { }));
         return elsa;

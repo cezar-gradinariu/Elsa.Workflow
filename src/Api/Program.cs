@@ -6,17 +6,14 @@ using Elsa.Workflow.Application.Queries;
 using Elsa.Workflow.Application.Workflows;
 using Elsa.Workflow.Domain.Repositories;
 using Elsa.Workflow.Infrastructure.Repositories;
-using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── MongoDB ─────────────────────────────────────────────────────────────────
-builder.Services.AddSingleton<IMongoClient>(_ =>
-    new MongoClient(builder.Configuration["MongoDB:ConnectionString"]));
-
-builder.Services.AddScoped<IMongoDatabase>(sp =>
-    sp.GetRequiredService<IMongoClient>()
-      .GetDatabase(builder.Configuration["MongoDB:DatabaseName"]));
+// IMongoClient and IMongoDatabase are registered as singletons by Elsa's UseMongoDb.
+// We do NOT register them here — doing so as Scoped would conflict with Elsa's
+// singleton workflow stores (scope validation error in Development mode).
+var mongoConnectionString = builder.Configuration["MongoDB:ConnectionString"]!;
 
 // ─── Domain / Application ────────────────────────────────────────────────────
 builder.Services.AddScoped<IFulfilmentOrderRepository, FulfilmentOrderRepository>();
@@ -34,36 +31,32 @@ builder.Services.AddScoped<
     GetFulfilmentOrderQueryHandler>();
 
 // ─── Elsa Workflows ──────────────────────────────────────────────────────────
-var connectionString = builder.Configuration["MongoDB:ConnectionString"]!;
-var databaseName     = builder.Configuration["MongoDB:DatabaseName"]!;
-
 builder.Services.AddElsa(elsa =>
 {
     // MongoDB persistence for Elsa — wired via Infrastructure to keep
-    // Elsa.Persistence.MongoDb references out of the Api layer (ADR-001/003).
-    elsa.UseElsaMongoDb(connectionString, databaseName);
+    // Elsa.Persistence.MongoDb references out of the Api layer.
+    // UseMongoDb registers IMongoClient and IMongoDatabase as singletons.
+    elsa.UseElsaMongoDb(mongoConnectionString);
 
     // Register code-first workflow definitions from the Application assembly.
     elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();
-    
-    // Enable workflow management
-    elsa.UseWorkflowManagement();
-    
-    // Enable REST API endpoints for workflow operations  
-    elsa.UseWorkflowsApi();
-});
 
-// Add CORS for Elsa Studio Docker container
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("ElsaStudio", policy =>
-    {
-        policy.WithOrigins("http://localhost:14740", "https://localhost:14740")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+    // Enable REST API endpoints for workflow operations
+    elsa.UseWorkflowsApi();
+
+    // Enable Identity for Studio authentication
+    elsa.UseIdentity(identity => {
+        identity.TokenOptions = options => options.SigningKey = "A-Super-Secret-Key-With-32-Chars!";
+        identity.UseAdminUserProvider();
     });
 });
+
+// Add CORS — must allow the Elsa Studio Docker container (port 6002) and any
+// local dev tooling. AllowAnyOrigin covers all cases in development.
+builder.Services.AddCors(cors => cors.AddDefaultPolicy(policy => policy
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .AllowAnyOrigin()));
 
 // ─── API / ProblemDetails ────────────────────────────────────────────────────
 builder.Services.AddControllers();
@@ -75,12 +68,14 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "Elsa.Workflow.Api", Version = "v1" });
 });
 
-
-
 var app = builder.Build();
 
+// CORS must be first so headers are present on every response, including
+// error responses that the Studio sees during its initial handshake.
+app.UseCors();
+
 // ProblemDetails middleware — maps all unhandled exceptions and status codes
-// to RFC 9457 problem+json (ADR-011).
+// to RFC 9457 problem+json.
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
@@ -90,17 +85,17 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Elsa.Workflow.Api v1");
-        // Serve Swagger UI at /swagger instead of root to avoid conflicts
     });
-    app.UseCors("ElsaStudio");
 }
 
+app.UseAuthentication();
 app.UseAuthorization();
 
-// Map customer API endpoints 
+// Map customer API endpoints
 app.MapControllers();
 
-
+// Map Elsa workflow management and identity endpoints
+app.UseWorkflowsApi();
 
 app.Run();
 

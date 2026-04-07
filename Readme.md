@@ -8,7 +8,7 @@ A .NET 10 solution built on Domain-Driven Design principles, using Elsa Workflow
 
 ## Solution Structure
 
-```
+```text
 Solution.sln
 ├── src/
 │   ├── Domain/            # Pure business model — zero external NuGet packages
@@ -27,29 +27,30 @@ Solution.sln
 ## Documentation
 
 | Document | Description |
-|----------|-------------|
+| -------- | ----------- |
 | [PRD.md](PRD.md) | Index of all documentation and ADRs |
 | [docs/prd.md](docs/prd.md) | Product requirements — goals, functional requirements, user stories |
 | [docs/glossary.md](docs/glossary.md) | Term definitions |
-| [docs/elsa-studio-mongodb-limitation.md](docs/elsa-studio-mongodb-limitation.md) | ❌ **KNOWN ISSUE** - Elsa Studio MongoDB integration limitation |
 
 ---
 
 ## Architecture Decision Records
 
 | ADR | Title |
-|-----|-------|
+| --- | ----- |
 | [ADR-001](docs/adr/001-ddd-layer-structure.md) | DDD Layer Structure |
 | [ADR-002](docs/adr/002-elsa-workflow-engine.md) | Elsa Workflows as the Embedded Orchestration Engine |
 | [ADR-003](docs/adr/003-mongodb-persistence.md) | MongoDB as the Single Persistence Store |
 | [ADR-004](docs/adr/004-resilience-two-level-strategy.md) | Two-Level Resilience Strategy for External Calls |
 | [ADR-005](docs/adr/005-outbox-pattern.md) | Outbox Pattern for Reliable Message Publishing |
 | [ADR-006](docs/adr/006-circuit-breaker.md) | Circuit Breaker for External API Calls |
-| [ADR-007](docs/adr/007-elsa-studio-embedded.md) | Elsa Studio Embedded in the Api Project |
+| [ADR-007](docs/adr/007-elsa-studio-embedded.md) | Elsa Studio Embedded in the Api Project *(superseded by ADR-014)* |
 | [ADR-008](docs/adr/008-testing-strategy.md) | Testing Strategy |
 | [ADR-009](docs/adr/009-testcontainers-policy.md) | Testcontainers Module Policy |
 | [ADR-010](docs/adr/010-workflow-vs-domain-separation.md) | Separation of Workflow Logic from Domain Logic |
-| [ADR-011](docs/elsa-studio-mongodb-limitation.md) | ❌ Elsa Studio MongoDB Integration Limitation |
+| [ADR-011](docs/adr/011-problem-details-error-responses.md) | Problem Details Error Responses |
+| [ADR-012](docs/adr/012-prohibited-libraries.md) | Prohibited Libraries |
+| [ADR-013](docs/adr/013-ofa-integration-workflow-step.md) | OFA Integration Workflow Step |
 | [ADR-014](docs/adr/014-elsa-studio-docker.md) | Elsa Studio via Official Docker Image |
 
 ---
@@ -64,223 +65,100 @@ Solution.sln
 
 ---
 
-## 🐳 Docker Development Setup
-
-### Quick Start
-
-This guide explains how to set up Elsa Workflows locally using Docker containers for development.
+## Development Setup
 
 ### Prerequisites
 
-- Docker Desktop installed and running
-- .NET 10 SDK (for custom domain API)
-- PowerShell or Command Prompt
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
-### Architecture Overview
+### Architecture
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Elsa Studio    │    │   Domain API     │    │   MongoDB       │
-│  + Server       │    │   (Your App)     │    │   Database      │
-│  :14740         │    │   :5158          │    │   :27017        │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-### 1. Start MongoDB Database
-
-```powershell
-docker run -d --name my-mongo `
-  -e MONGO_INITDB_ROOT_USERNAME=admin `
-  -e MONGO_INITDB_ROOT_PASSWORD=admin `
-  -p 27017:27017 `
-  mongo:latest
+```text
+┌──────────────────┐   HTTP /elsa/api   ┌─────────────────┐
+│  Elsa Studio     │ ◄────────────────► │   Domain API    │
+│  (Docker)        │                    │   (dotnet run)  │
+│  localhost:6002  │                    │  localhost:5158 │
+└──────────────────┘                    └────────┬────────┘
+                                                 │
+                                        ┌────────▼────────┐
+                                        │    MongoDB      │
+                                        │    (Docker)     │
+                                        │  localhost:27017│
+                                        └─────────────────┘
 ```
 
-### 2. Start Elsa Studio + Server
+The Elsa Studio image is a pure UI — it has no database of its own. It connects to the Domain API over HTTP, which owns all MongoDB persistence.
 
-```powershell
-docker run -d --name elsa-studio-server `
-  -e ASPNETCORE_ENVIRONMENT=Development `
-  -e ASPNETCORE_URLS=http://+:80 `
-  -e ConnectionStrings__Default="mongodb://admin:admin@host.docker.internal:27017/elsa_ddd_db?authSource=admin" `
-  -p 14740:80 `
-  elsaworkflows/elsa-server-and-studio-v3
+### 1. Start infrastructure (MongoDB + Elsa Studio)
+
+```bash
+docker-compose up -d
 ```
 
-### 3. Start Domain API (Optional)
+This starts:
+- **MongoDB** on `localhost:27017` (credentials: `admin` / `admin`)
+- **Elsa Studio** on `http://localhost:6002` (connects to the API via `host.docker.internal:5158`)
 
-```powershell
-cd src/Api
-dotnet run
+### 2. Start the Domain API
+
+```bash
+dotnet run --project src/Api
 ```
 
-### Default Credentials
+The API starts on `http://localhost:5158`.
 
-| Service | Username | Password | URL |
-|---------|----------|----------|-----|
-| MongoDB | `admin` | `admin` | localhost:27017 |
-| Elsa Studio | `admin` | `password` | http://localhost:14740 |
-| Domain API | - | - | http://localhost:5158/api/WorkflowTest/test |
+### 3. Open the tools
 
-### Automated Setup Script
+| Tool | URL | Credentials |
+| ---- | --- | ----------- |
+| Elsa Studio | http://localhost:6002 | `admin` / `password` |
+| Swagger UI | http://localhost:5158/swagger | — |
+| Elsa REST API | http://localhost:5158/elsa/api | — |
 
-Create `start-elsa.ps1` in the solution root:
+> **CORS note:** CORS is configured with `AllowAnyOrigin` in development so the Studio container at port 6002 can reach the API without issue.
 
-```powershell
-# Elsa Workflow Docker Setup Script
-Write-Host "🚀 Starting Elsa Workflow Environment..." -ForegroundColor Green
+### Stopping services
 
-# Stop existing containers (if any)
-docker stop my-mongo elsa-studio-server 2>$null
-docker rm my-mongo elsa-studio-server 2>$null
+```bash
+# Stop containers (preserves MongoDB data volume)
+docker-compose down
 
-# Start MongoDB
-Write-Host "📦 Starting MongoDB..." -ForegroundColor Blue
-docker run -d --name my-mongo `
-  -e MONGO_INITDB_ROOT_USERNAME=admin `
-  -e MONGO_INITDB_ROOT_PASSWORD=admin `
-  -p 27017:27017 `
-  mongo:latest
-
-# Wait for MongoDB to be ready
-Start-Sleep -Seconds 10
-
-# Start Elsa Studio + Server
-Write-Host "🎨 Starting Elsa Studio + Server..." -ForegroundColor Blue
-docker run -d --name elsa-studio-server `
-  -e ASPNETCORE_ENVIRONMENT=Development `
-  -e ASPNETCORE_URLS=http://+:80 `
-  -e ConnectionStrings__Default="mongodb://admin:admin@host.docker.internal:27017/elsa_ddd_db?authSource=admin" `
-  -p 14740:80 `
-  elsaworkflows/elsa-server-and-studio-v3
-
-# Wait for Elsa to be ready
-Start-Sleep -Seconds 15
-
-# Check status
-docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
-
-Write-Host "✅ Setup Complete!" -ForegroundColor Green
-Write-Host "🎨 Elsa Studio: http://localhost:14740" -ForegroundColor Cyan
-Write-Host "📚 API Test: http://localhost:5158/api/WorkflowTest/test" -ForegroundColor Cyan
-```
-
-### Startup Sequence
-
-**Important**: Always start containers in this order:
-
-1. **MongoDB** (`my-mongo` container)
-2. **Elsa Studio + Server** (`elsa-studio-server` container)  
-3. **Domain API** (`dotnet run` - optional)
-
-### Common Commands
-
-```powershell
-# Check running containers
-docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
-
-# View container logs
-docker logs elsa-studio-server
-docker logs my-mongo
-
-# Stop all services
-docker stop elsa-studio-server my-mongo
-docker rm elsa-studio-server my-mongo
-
-# Restart if needed
-docker restart elsa-studio-server
-```
-
-### Testing the Setup
-
-```powershell
-# Test Elsa Studio - should show workflow designer
-# Open: http://localhost:14740
-
-# Access Swagger API Documentation
-# Open: http://localhost:5158/swagger
-
-# Create test fulfilment order (use your actual fulfilment controller)
-curl -X POST http://localhost:5158/api/fulfilments `
-  -H "Content-Type: application/json" `
-  -d '{"customerName": "Test User", "items": ["Item1", "Item2"]}'
-```
-
-### Available API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | http://localhost:5158/api/fulfilments | Create fulfilment order |
-| GET | http://localhost:5158/api/fulfilments/{id} | Get fulfilment order |
-| DELETE | http://localhost:5158/api/fulfilments/{id} | Delete fulfilment order |
-
-### Troubleshooting
-```powershell
-# Check if containers are running
-docker ps
-
-# View container logs for errors
-docker logs elsa-studio-server
-docker logs my-mongo
-
-# Restart containers if needed
-docker restart elsa-studio-server
-```
-
-**API Connection Issues:**
-```powershell
-# Check if API is responding
-curl http://localhost:5158/api/WorkflowTest/test
-
-# Check API logs for errors
-# See console output where 'dotnet run' was executed
+# Stop containers AND wipe all data
+docker-compose down -v
 ```
 
 ---
 
-## 🔗 Elsa Workflows API Reference
+## API Endpoints
 
-### Official Documentation
+### Domain API
 
-| Resource | URL |
-|----------|-----|
-| Elsa API Reference | [docs.elsaworkflows.io/docs/guides/workflow-management-api](https://docs.elsaworkflows.io/docs/guides/workflow-management-api) |
-| REST API Endpoints | [docs.elsaworkflows.io/docs/api/workflow-management](https://docs.elsaworkflows.io/docs/api/workflow-management) |
-| Elsa Core Repository | [github.com/elsa-workflows/elsa-core](https://github.com/elsa-workflows/elsa-core) |
-| API Examples | [github.com/elsa-workflows/elsa-core/tree/main/samples](https://github.com/elsa-workflows/elsa-core/tree/main/samples) |
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| `POST` | `/api/fulfilments` | Create a fulfilment order |
+| `GET` | `/api/fulfilments/{id}` | Get a fulfilment order |
+| `DELETE` | `/api/fulfilments/{id}` | Delete a fulfilment order |
 
-### Key Elsa API Endpoints (when exposed)
+### Elsa Workflow API (managed by Elsa)
 
-**Workflow Definitions:**
-- `GET /elsa/api/workflow-definitions` - List workflow definitions
-- `POST /elsa/api/workflow-definitions` - Create workflow definition  
-- `GET /elsa/api/workflow-definitions/{id}` - Get workflow definition
-- `PUT /elsa/api/workflow-definitions/{id}` - Update workflow definition
-- `DELETE /elsa/api/workflow-definitions/{id}` - Delete workflow definition
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| `GET` | `/elsa/api/workflow-definitions` | List workflow definitions |
+| `GET` | `/elsa/api/workflow-instances` | List workflow instances |
+| `GET` | `/elsa/api/activity-types` | List available activity types |
 
-**Workflow Instances:**
-- `GET /elsa/api/workflow-instances` - List workflow instances
-- `POST /elsa/api/workflow-instances` - Create workflow instance
-- `GET /elsa/api/workflow-instances/{id}` - Get workflow instance  
-- `POST /elsa/api/workflow-instances/{id}/execute` - Execute workflow
-- `POST /elsa/api/workflow-instances/{id}/cancel` - Cancel workflow
-
-**Activity Types:**
-- `GET /elsa/api/activity-types` - List available activity types
-- `GET /elsa/api/activity-types/{type}` - Get activity type details
-
-*Note: These endpoints are available when Elsa API is properly configured with `UseWorkflowsApi()`. Currently managed through Elsa Studio Docker container.*
+Full API reference: [docs.elsaworkflows.io](https://docs.elsaworkflows.io/docs/guides/workflow-management-api)
 
 ---
 
 ## External References
 
 | Resource | URL |
-|----------|-----|
+| -------- | --- |
 | Elsa Workflows documentation | [docs.elsaworkflows.io](https://docs.elsaworkflows.io/) |
 | Elsa GitHub repository | [github.com/elsa-workflows/elsa-core](https://github.com/elsa-workflows/elsa-core) |
 | Testcontainers for .NET | [dotnet.testcontainers.org](https://dotnet.testcontainers.org/) |
 | Reqnroll (BDD framework) | [reqnroll.net](https://reqnroll.net/) |
 | Polly resilience library | [github.com/App-vNext/Polly](https://github.com/App-vNext/Polly) |
 | MongoDB .NET Driver | [mongodb.com/docs/drivers/csharp](https://www.mongodb.com/docs/drivers/csharp/) |
-| .NET Central Package Management | [learn.microsoft.com/nuget/consume-packages/central-package-management](https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management) |
