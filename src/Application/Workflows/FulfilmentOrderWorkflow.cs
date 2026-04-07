@@ -48,7 +48,11 @@ public class FulfilmentOrderWorkflow : WorkflowBase
         // with Polly retry + circuit breaker (ADR-006).
         workflow.Root = new Sequence
         {
-            Activities = []
+            Activities = 
+            [
+                // Placeholder activity so the workflow appears in Elsa Studio
+                new WriteLine("FulfilmentOrderWorkflow started - this workflow is now visible in Elsa Studio!")
+            ]
         };
     }
 }

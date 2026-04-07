@@ -100,7 +100,7 @@ docker run -d --name my-mongo `
 docker run -d --name elsa-studio-server `
   -e ASPNETCORE_ENVIRONMENT=Development `
   -e ASPNETCORE_URLS=http://+:80 `
-  -e ConnectionStrings__Default="mongodb://admin:admin@host.docker.internal:27017/elsa_studio_db?authSource=admin" `
+  -e ConnectionStrings__Default="mongodb://admin:admin@host.docker.internal:27017/elsa_ddd_db?authSource=admin" `
   -p 14740:80 `
   elsaworkflows/elsa-server-and-studio-v3
 ```
@@ -148,7 +148,7 @@ Write-Host "🎨 Starting Elsa Studio + Server..." -ForegroundColor Blue
 docker run -d --name elsa-studio-server `
   -e ASPNETCORE_ENVIRONMENT=Development `
   -e ASPNETCORE_URLS=http://+:80 `
-  -e ConnectionStrings__Default="mongodb://admin:admin@host.docker.internal:27017/elsa_studio_db?authSource=admin" `
+  -e ConnectionStrings__Default="mongodb://admin:admin@host.docker.internal:27017/elsa_ddd_db?authSource=admin" `
   -p 14740:80 `
   elsaworkflows/elsa-server-and-studio-v3
 
