@@ -46,8 +46,11 @@ builder.Services.AddElsa(elsa =>
     // Register code-first workflow definitions from the Application assembly.
     elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();
     
-    // Enable workflow management for Elsa Studio Docker container
+    // Enable workflow management
     elsa.UseWorkflowManagement();
+    
+    // Enable REST API endpoints for workflow operations  
+    elsa.UseWorkflowsApi();
 });
 
 // Add CORS for Elsa Studio Docker container

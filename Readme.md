@@ -195,14 +195,11 @@ docker restart elsa-studio-server
 # Test Elsa Studio - should show workflow designer
 # Open: http://localhost:14740
 
-# Test Domain API
-curl http://localhost:5158/api/WorkflowTest/test
-
 # Access Swagger API Documentation
 # Open: http://localhost:5158/swagger
 
-# Create test fulfilment order
-curl -X POST http://localhost:5158/api/WorkflowTest/create-fulfilment-order `
+# Create test fulfilment order (use your actual fulfilment controller)
+curl -X POST http://localhost:5158/api/fulfilments `
   -H "Content-Type: application/json" `
   -d '{"customerName": "Test User", "items": ["Item1", "Item2"]}'
 ```
@@ -211,11 +208,9 @@ curl -X POST http://localhost:5158/api/WorkflowTest/create-fulfilment-order `
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | http://localhost:5158/api/WorkflowTest/test | Health check |
 | POST | http://localhost:5158/api/fulfilments | Create fulfilment order |
 | GET | http://localhost:5158/api/fulfilments/{id} | Get fulfilment order |
 | DELETE | http://localhost:5158/api/fulfilments/{id} | Delete fulfilment order |
-| POST | http://localhost:5158/api/WorkflowTest/create-fulfilment-order | Test workflow creation |
 
 ### Troubleshooting
 ```powershell
@@ -238,6 +233,41 @@ curl http://localhost:5158/api/WorkflowTest/test
 # Check API logs for errors
 # See console output where 'dotnet run' was executed
 ```
+
+---
+
+## 🔗 Elsa Workflows API Reference
+
+### Official Documentation
+
+| Resource | URL |
+|----------|-----|
+| Elsa API Reference | [docs.elsaworkflows.io/docs/guides/workflow-management-api](https://docs.elsaworkflows.io/docs/guides/workflow-management-api) |
+| REST API Endpoints | [docs.elsaworkflows.io/docs/api/workflow-management](https://docs.elsaworkflows.io/docs/api/workflow-management) |
+| Elsa Core Repository | [github.com/elsa-workflows/elsa-core](https://github.com/elsa-workflows/elsa-core) |
+| API Examples | [github.com/elsa-workflows/elsa-core/tree/main/samples](https://github.com/elsa-workflows/elsa-core/tree/main/samples) |
+
+### Key Elsa API Endpoints (when exposed)
+
+**Workflow Definitions:**
+- `GET /elsa/api/workflow-definitions` - List workflow definitions
+- `POST /elsa/api/workflow-definitions` - Create workflow definition  
+- `GET /elsa/api/workflow-definitions/{id}` - Get workflow definition
+- `PUT /elsa/api/workflow-definitions/{id}` - Update workflow definition
+- `DELETE /elsa/api/workflow-definitions/{id}` - Delete workflow definition
+
+**Workflow Instances:**
+- `GET /elsa/api/workflow-instances` - List workflow instances
+- `POST /elsa/api/workflow-instances` - Create workflow instance
+- `GET /elsa/api/workflow-instances/{id}` - Get workflow instance  
+- `POST /elsa/api/workflow-instances/{id}/execute` - Execute workflow
+- `POST /elsa/api/workflow-instances/{id}/cancel` - Cancel workflow
+
+**Activity Types:**
+- `GET /elsa/api/activity-types` - List available activity types
+- `GET /elsa/api/activity-types/{type}` - Get activity type details
+
+*Note: These endpoints are available when Elsa API is properly configured with `UseWorkflowsApi()`. Currently managed through Elsa Studio Docker container.*
 
 ---
 
