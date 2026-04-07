@@ -14,7 +14,7 @@ Solution.sln
 │   ├── Domain/            # Pure business model — zero external NuGet packages
 │   ├── Application/       # Use cases, Elsa workflow definitions and activities
 │   ├── Infrastructure/    # MongoDB repositories, resilience pipelines, outbox
-│   └── Api/               # ASP.NET Core Web API + embedded Elsa Studio
+│   └── Api/               # ASP.NET Core Web API with Elsa endpoints
 └── tests/
     ├── Domain.Tests/      # Unit tests — pure in-memory
     ├── Application.Tests/ # Unit tests — mocked infrastructure
@@ -48,6 +48,7 @@ Solution.sln
 | [ADR-008](docs/adr/008-testing-strategy.md) | Testing Strategy |
 | [ADR-009](docs/adr/009-testcontainers-policy.md) | Testcontainers Module Policy |
 | [ADR-010](docs/adr/010-workflow-vs-domain-separation.md) | Separation of Workflow Logic from Domain Logic |
+| [ADR-014](docs/adr/014-elsa-studio-docker.md) | Elsa Studio via Official Docker Image |
 
 ---
 
@@ -58,6 +59,150 @@ Solution.sln
 - **Infrastructure is a detail** — MongoDB, Polly resilience pipelines, and the outbox dispatcher are wired in `src/Infrastructure` and invisible to the domain and application layers.
 - **Reliable by design** — external calls use a two-level resilience strategy: Polly (fast, in-process) + Elsa durable retry (suspend to MongoDB, resume after delay).
 - **Dispatcher-agnostic** — all workflow triggering goes through `IWorkflowDispatcher`. Swapping to a distributed dispatcher for multi-instance deployment requires one registration change.
+
+---
+
+## 🐳 Docker Development Setup
+
+### Quick Start
+
+This guide explains how to set up Elsa Workflows locally using Docker containers for development.
+
+### Prerequisites
+
+- Docker Desktop installed and running
+- .NET 10 SDK (for custom domain API)
+- PowerShell or Command Prompt
+
+### Architecture Overview
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│  Elsa Studio    │    │   Domain API     │    │   MongoDB       │
+│  + Server       │    │   (Your App)     │    │   Database      │
+│  :14740         │    │   :5158          │    │   :27017        │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+### 1. Start MongoDB Database
+
+```powershell
+docker run -d --name my-mongo `
+  -e MONGO_INITDB_ROOT_USERNAME=admin `
+  -e MONGO_INITDB_ROOT_PASSWORD=admin `
+  -p 27017:27017 `
+  mongo:latest
+```
+
+### 2. Start Elsa Studio + Server
+
+```powershell
+docker run -d --name elsa-studio-server `
+  -e ASPNETCORE_ENVIRONMENT=Development `
+  -e ASPNETCORE_URLS=http://+:80 `
+  -e ConnectionStrings__Default="mongodb://admin:admin@host.docker.internal:27017/elsa_studio_db?authSource=admin" `
+  -p 14740:80 `
+  elsaworkflows/elsa-server-and-studio-v3
+```
+
+### 3. Start Domain API (Optional)
+
+```powershell
+cd src/Api
+dotnet run
+```
+
+### Default Credentials
+
+| Service | Username | Password | URL |
+|---------|----------|----------|-----|
+| MongoDB | `admin` | `admin` | localhost:27017 |
+| Elsa Studio | `admin` | `password` | http://localhost:14740 |
+| Domain API Swagger | - | - | http://localhost:5158/swagger |
+
+### Automated Setup Script
+
+Create `start-elsa.ps1` in the solution root:
+
+```powershell
+# Elsa Workflow Docker Setup Script
+Write-Host "🚀 Starting Elsa Workflow Environment..." -ForegroundColor Green
+
+# Stop existing containers (if any)
+docker stop my-mongo elsa-studio-server 2>$null
+docker rm my-mongo elsa-studio-server 2>$null
+
+# Start MongoDB
+Write-Host "📦 Starting MongoDB..." -ForegroundColor Blue
+docker run -d --name my-mongo `
+  -e MONGO_INITDB_ROOT_USERNAME=admin `
+  -e MONGO_INITDB_ROOT_PASSWORD=admin `
+  -p 27017:27017 `
+  mongo:latest
+
+# Wait for MongoDB to be ready
+Start-Sleep -Seconds 10
+
+# Start Elsa Studio + Server
+Write-Host "🎨 Starting Elsa Studio + Server..." -ForegroundColor Blue
+docker run -d --name elsa-studio-server `
+  -e ASPNETCORE_ENVIRONMENT=Development `
+  -e ASPNETCORE_URLS=http://+:80 `
+  -e ConnectionStrings__Default="mongodb://admin:admin@host.docker.internal:27017/elsa_studio_db?authSource=admin" `
+  -p 14740:80 `
+  elsaworkflows/elsa-server-and-studio-v3
+
+# Wait for Elsa to be ready
+Start-Sleep -Seconds 15
+
+# Check status
+docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
+
+Write-Host "✅ Setup Complete!" -ForegroundColor Green
+Write-Host "🎨 Elsa Studio: http://localhost:14740" -ForegroundColor Cyan
+Write-Host "📚 API Swagger: http://localhost:5158/swagger" -ForegroundColor Cyan
+```
+
+### Startup Sequence
+
+**Important**: Always start containers in this order:
+
+1. **MongoDB** (`my-mongo` container)
+2. **Elsa Studio + Server** (`elsa-studio-server` container)  
+3. **Domain API** (`dotnet run` - optional)
+
+### Common Commands
+
+```powershell
+# Check running containers
+docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
+
+# View container logs
+docker logs elsa-studio-server
+docker logs my-mongo
+
+# Stop all services
+docker stop elsa-studio-server my-mongo
+docker rm elsa-studio-server my-mongo
+
+# Restart if needed
+docker restart elsa-studio-server
+```
+
+### Testing the Setup
+
+```powershell
+# Test Elsa Studio - should show workflow designer
+# Open: http://localhost:14740
+
+# Test Domain API
+curl http://localhost:5158/api/WorkflowTest/test
+
+# Create test fulfilment order
+curl -X POST http://localhost:5158/api/WorkflowTest/create-fulfilment-order `
+  -H "Content-Type: application/json" `
+  -d '{"customerName": "Test User", "items": ["Item1", "Item2"]}'
+```
 
 ---
 

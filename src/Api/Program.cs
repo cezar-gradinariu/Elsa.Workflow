@@ -45,6 +45,21 @@ builder.Services.AddElsa(elsa =>
 
     // Register code-first workflow definitions from the Application assembly.
     elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();
+    
+    // Enable workflow management for Elsa Studio Docker container
+    elsa.UseWorkflowManagement();
+});
+
+// Add CORS for Elsa Studio Docker container
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ElsaStudio", policy =>
+    {
+        policy.WithOrigins("http://localhost:14740", "https://localhost:14740")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
 });
 
 // ─── API / ProblemDetails ────────────────────────────────────────────────────
@@ -53,6 +68,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+
 
 var app = builder.Build();
 
@@ -65,10 +82,15 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseCors("ElsaStudio");
 }
 
 app.UseAuthorization();
+
+// Map customer API endpoints 
 app.MapControllers();
+
+
 
 app.Run();
 

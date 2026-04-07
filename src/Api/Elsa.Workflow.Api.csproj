@@ -8,6 +8,9 @@
 
   <ItemGroup>
     <PackageReference Include="Elsa" Version="3.6.0" />
+    <PackageReference Include="Elsa.Api.Common" Version="3.6.0" />
+    <PackageReference Include="Elsa.Workflows.Api" Version="3.6.0" />
+
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.4.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
