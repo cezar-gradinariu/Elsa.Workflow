@@ -67,7 +67,10 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "Elsa.Workflow.Api", Version = "v1" });
+});
 
 
 
@@ -81,7 +84,11 @@ app.UseStatusCodePages();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Elsa.Workflow.Api v1");
+        // Serve Swagger UI at /swagger instead of root to avoid conflicts
+    });
     app.UseCors("ElsaStudio");
 }
 

@@ -118,7 +118,7 @@ dotnet run
 |---------|----------|----------|-----|
 | MongoDB | `admin` | `admin` | localhost:27017 |
 | Elsa Studio | `admin` | `password` | http://localhost:14740 |
-| Domain API Swagger | - | - | http://localhost:5158/swagger |
+| Domain API | - | - | http://localhost:5158/api/WorkflowTest/test |
 
 ### Automated Setup Script
 
@@ -160,7 +160,7 @@ docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
 
 Write-Host "✅ Setup Complete!" -ForegroundColor Green
 Write-Host "🎨 Elsa Studio: http://localhost:14740" -ForegroundColor Cyan
-Write-Host "📚 API Swagger: http://localhost:5158/swagger" -ForegroundColor Cyan
+Write-Host "📚 API Test: http://localhost:5158/api/WorkflowTest/test" -ForegroundColor Cyan
 ```
 
 ### Startup Sequence
@@ -198,10 +198,45 @@ docker restart elsa-studio-server
 # Test Domain API
 curl http://localhost:5158/api/WorkflowTest/test
 
+# Access Swagger API Documentation
+# Open: http://localhost:5158/swagger
+
 # Create test fulfilment order
 curl -X POST http://localhost:5158/api/WorkflowTest/create-fulfilment-order `
   -H "Content-Type: application/json" `
   -d '{"customerName": "Test User", "items": ["Item1", "Item2"]}'
+```
+
+### Available API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | http://localhost:5158/api/WorkflowTest/test | Health check |
+| POST | http://localhost:5158/api/fulfilments | Create fulfilment order |
+| GET | http://localhost:5158/api/fulfilments/{id} | Get fulfilment order |
+| DELETE | http://localhost:5158/api/fulfilments/{id} | Delete fulfilment order |
+| POST | http://localhost:5158/api/WorkflowTest/create-fulfilment-order | Test workflow creation |
+
+### Troubleshooting
+```powershell
+# Check if containers are running
+docker ps
+
+# View container logs for errors
+docker logs elsa-studio-server
+docker logs my-mongo
+
+# Restart containers if needed
+docker restart elsa-studio-server
+```
+
+**API Connection Issues:**
+```powershell
+# Check if API is responding
+curl http://localhost:5158/api/WorkflowTest/test
+
+# Check API logs for errors
+# See console output where 'dotnet run' was executed
 ```
 
 ---
