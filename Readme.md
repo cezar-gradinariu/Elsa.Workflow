@@ -31,6 +31,7 @@ Solution.sln
 | [PRD.md](PRD.md) | Index of all documentation and ADRs |
 | [docs/prd.md](docs/prd.md) | Product requirements — goals, functional requirements, user stories |
 | [docs/glossary.md](docs/glossary.md) | Term definitions |
+| [docs/elsa-studio-mongodb-limitation.md](docs/elsa-studio-mongodb-limitation.md) | ❌ **KNOWN ISSUE** - Elsa Studio MongoDB integration limitation |
 
 ---
 
@@ -48,6 +49,7 @@ Solution.sln
 | [ADR-008](docs/adr/008-testing-strategy.md) | Testing Strategy |
 | [ADR-009](docs/adr/009-testcontainers-policy.md) | Testcontainers Module Policy |
 | [ADR-010](docs/adr/010-workflow-vs-domain-separation.md) | Separation of Workflow Logic from Domain Logic |
+| [ADR-011](docs/elsa-studio-mongodb-limitation.md) | ❌ Elsa Studio MongoDB Integration Limitation |
 | [ADR-014](docs/adr/014-elsa-studio-docker.md) | Elsa Studio via Official Docker Image |
 
 ---
