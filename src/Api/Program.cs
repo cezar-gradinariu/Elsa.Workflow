@@ -42,6 +42,12 @@ builder.Services.AddElsa(elsa =>
     // Register code-first workflow definitions from the Application assembly.
     elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();
 
+    // Enable scheduling features for Delay and Timer activities.
+    elsa.UseScheduling();
+
+    // Enable HTTP features for HTTP request activities.
+    elsa.UseHttp();
+
     // Enable REST API endpoints for workflow operations.
     // UseWorkflowsApi internally calls UseFastEndpoints and configures Elsa's
     // own authentication/authorization pipeline — do NOT add UseAuthentication /
