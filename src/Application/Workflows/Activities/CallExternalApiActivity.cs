@@ -1,42 +1,59 @@
 using Elsa.Workflows;
-using Elsa.Workflows.Activities;
+using Elsa.Workflows.Activities.Flowchart.Attributes;
+using Elsa.Workflows.Attributes;
+using Elsa.Workflows.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Elsa.Workflow.Application.Workflows.Activities;
 
-/// <summary>
-/// A custom activity that makes an HTTP GET call to an external API.
-/// </summary>
+// 1. DISPLAY & DESCRIPTION: Set them explicitly in the Attribute
+[Activity(
+    Namespace = "MyCustomActivities",
+    DisplayName = "Call an External API", 
+    Description = "Executes a GET request and returns the body content.",
+    Category = "Networking"
+)]
+[FlowNode("Success", "Failed")] // OUTCOMES: The ports for the flowchart
 public sealed class CallExternalApiActivity : CodeActivity
 {
-    public string Url { get; init; } = default!;
+    [Input(Description = "The URL to call")]
+    public Input<string> Url { get; set; } = default!;
+
+    // 2. OUTPUT: This allows other activities to "see" and use the response data
+    [Output(Description = "The JSON or text returned from the API")]
+    public Output<string>? Result { get; set; }
 
     protected override async ValueTask ExecuteAsync(ActivityExecutionContext context)
     {
+        var url = context.Get(Url);
+        var logger = context.GetRequiredService<ILogger<CallExternalApiActivity>>();
+        
         using var httpClient = new HttpClient();
         
         try
         {
-            var logger = context.GetRequiredService<ILogger<CallExternalApiActivity>>();
-            logger.LogInformation("Making API call to: {Url}", Url);
+            var response = await httpClient.GetAsync(url, context.CancellationToken);
+            var content = await response.Content.ReadAsStringAsync();
 
-            var response = await httpClient.GetAsync(Url, context.CancellationToken);
-            var content = await response.Content.ReadAsStringAsync(context.CancellationToken);
+            // 3. SETTING THE OUTPUT: This maps the data to the 'Result' property
+            context.Set(Result, content);
             
+            // This also helps with debugging in the 'Execution Log'
+            context.JournalData.Add("Response Body", content);
+
             if (response.IsSuccessStatusCode)
             {
-                logger.LogInformation("API call successful. Status: {StatusCode}, Response length: {Length} chars", 
-                    response.StatusCode, content.Length);
+                await context.CompleteActivityWithOutcomesAsync("Success");
             }
             else
             {
-                logger.LogWarning("API call failed with status: {StatusCode}", response.StatusCode);
+                await context.CompleteActivityWithOutcomesAsync("Failed");
             }
         }
         catch (Exception ex)
         {
-            var logger = context.GetRequiredService<ILogger<CallExternalApiActivity>>();
-            logger.LogError(ex, "API call to {Url} failed with exception", Url);
+            logger.LogError(ex, "API Call failed");
+            await context.CompleteActivityWithOutcomesAsync("Failed");
         }
     }
 }

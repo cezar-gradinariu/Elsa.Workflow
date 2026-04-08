@@ -2,7 +2,6 @@ using Elsa.Workflows;
 using Elsa.Workflows.Activities;
 using Elsa.Workflows.Models;
 using Elsa.Scheduling.Activities;
-using Elsa.Http;
 using Elsa.Workflow.Application.Workflows.Activities;
 
 namespace Elsa.Workflow.Application.Workflows;
@@ -57,25 +56,26 @@ public class FulfilmentOrderWorkflow : WorkflowBase
         {
             Activities = 
             [
-                // Initial workflow start notification
-                new WriteLine("FulfilmentOrderWorkflow started - this workflow is now visible in Elsa Studio!"),
+                // Step 1: Initial workflow start notification  
+                new WorkflowStartedActivity(),
                 
-                // Wait for 1 minute before making API call
-                new Delay(TimeSpan.FromMinutes(1)),
+                // Step 2: Prepare for 1-minute delay
+                new PrepareDelayActivity(),
+                new Delay(TimeSpan.FromSeconds(10)),
                 
-                // Call external API after the delay
-                new WriteLine("Making API call to jsonplaceholder..."),
+                // Step 3: Prepare for external API call
+                new PrepareApiCallActivity(),
                 new CallExternalApiActivity
                 {
-                    Url = "https://jsonplaceholder.typicode.com/posts/1"
+                    Url = new Input<string>("https://jsonplaceholder.typicode.com/posts/1")
                 },
-                new WriteLine("API call completed - check logs for results"),
+                new ApiCallCompletedActivity(),
                 
-                // This executes after successful API call
-                new WriteLine("API call completed successfully - finalizing FulfilmentOrder workflow"),
+                // Step 4: Begin finalization process
+                new BeginFinalizationActivity(), 
                 
-                // Mark the workflow as completed
-                new WriteLine("FulfilmentOrderWorkflow finalized successfully")
+                // Step 5: Mark workflow as completed  
+                new WorkflowCompletedActivity()
             ]
         };
     }
