@@ -41,14 +41,22 @@ builder.Services.AddElsa(elsa =>
     // Register code-first workflow definitions from the Application assembly.
     elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();
 
-    // Enable REST API endpoints for workflow operations
+    // Enable REST API endpoints for workflow operations.
+    // UseWorkflowsApi internally calls UseFastEndpoints and configures Elsa's
+    // own authentication/authorization pipeline — do NOT add UseAuthentication /
+    // UseAuthorization separately, as that fights Elsa's identity scheme setup.
     elsa.UseWorkflowsApi();
 
-    // Enable Identity for Studio authentication
+    // Enable Identity for Studio authentication (JWT via admin user provider).
     elsa.UseIdentity(identity => {
         identity.TokenOptions = options => options.SigningKey = "A-Super-Secret-Key-With-32-Chars!";
         identity.UseAdminUserProvider();
     });
+
+    // Activates DefaultAuthenticationFeature which registers the "Jwt-or-ApiKey" policy
+    // scheme as the default authentication/challenge scheme. Without this call the scheme
+    // is never registered and UseAuthentication/UseAuthorization throw on every request.
+    elsa.UseDefaultAuthentication();
 });
 
 // Add CORS — must allow the Elsa Studio Docker container (port 6002) and any
@@ -63,9 +71,15 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
+
+// Swagger — exclude Elsa's FastEndpoints routes to avoid schemaId conflicts
+// caused by Elsa's generic types (e.g. ListResponse<T> where T has the same
+// simple name across different namespaces). Only our domain controllers are documented.
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "Elsa.Workflow.Api", Version = "v1" });
+    c.DocInclusionPredicate((_, api) => api.ActionDescriptor.DisplayName?.Contains("Elsa") != true);
+    c.CustomSchemaIds(type => type.FullName);
 });
 
 var app = builder.Build();
@@ -88,13 +102,11 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseAuthentication();
-app.UseAuthorization();
-
-// Map customer API endpoints
+// Domain API endpoints (no auth required on our controllers).
 app.MapControllers();
 
-// Map Elsa workflow management and identity endpoints
+// Elsa workflow management and identity endpoints.
+// UseWorkflowsApi wires up FastEndpoints with Elsa's own auth pipeline.
 app.UseWorkflowsApi();
 
 app.Run();

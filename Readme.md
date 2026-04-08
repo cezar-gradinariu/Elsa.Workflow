@@ -88,7 +88,7 @@ Solution.sln
                                         └─────────────────┘
 ```
 
-The Elsa Studio image is a pure UI — it has no database of its own. It connects to the Domain API over HTTP, which owns all MongoDB persistence.
+`elsaworkflows/elsa-studio-v3` is a pure static-file server — it serves the Blazor WASM bundle only. Every API call is made by the **browser**, so the API URL must be reachable from `localhost`, not from inside Docker.
 
 ### 1. Start infrastructure (MongoDB + Elsa Studio)
 
@@ -96,9 +96,9 @@ The Elsa Studio image is a pure UI — it has no database of its own. It connect
 docker-compose up -d
 ```
 
-This starts:
+Starts:
 - **MongoDB** on `localhost:27017` (credentials: `admin` / `admin`)
-- **Elsa Studio** on `http://localhost:6002` (connects to the API via `host.docker.internal:5158`)
+- **Elsa Studio** on `http://localhost:6002`
 
 ### 2. Start the Domain API
 
@@ -106,7 +106,7 @@ This starts:
 dotnet run --project src/Api
 ```
 
-The API starts on `http://localhost:5158`.
+API starts on `http://localhost:5158`.
 
 ### 3. Open the tools
 
@@ -115,8 +115,6 @@ The API starts on `http://localhost:5158`.
 | Elsa Studio | http://localhost:6002 | `admin` / `password` |
 | Swagger UI | http://localhost:5158/swagger | — |
 | Elsa REST API | http://localhost:5158/elsa/api | — |
-
-> **CORS note:** CORS is configured with `AllowAnyOrigin` in development so the Studio container at port 6002 can reach the API without issue.
 
 ### Stopping services
 
@@ -127,6 +125,52 @@ docker-compose down
 # Stop containers AND wipe all data
 docker-compose down -v
 ```
+
+---
+
+## Elsa Configuration Notes
+
+These are non-obvious requirements that must be in place for the Studio and API to work correctly.
+
+### `elsa.UseDefaultAuthentication()` is mandatory
+
+`UseIdentity` alone does **not** activate JWT authentication. `DefaultAuthenticationFeature` — which registers the `"Jwt-or-ApiKey"` policy scheme used for all protected endpoints — is a separate opt-in:
+
+```csharp
+builder.Services.AddElsa(elsa =>
+{
+    elsa.UseIdentity(identity => {
+        identity.TokenOptions = options => options.SigningKey = "...";
+        identity.UseAdminUserProvider();
+    });
+
+    elsa.UseDefaultAuthentication(); // required — separate call on IModule
+});
+```
+
+Without this, every authenticated request returns **500** ("No DefaultChallengeScheme found").
+
+### MongoDB connection string must contain the database name
+
+Elsa's MongoDB feature reads the database name from the `MongoUrl` path segment. A separate `DatabaseName` config key is **not** used:
+
+```json
+"MongoDB": {
+  "ConnectionString": "mongodb://admin:admin@localhost:27017/elsa_ddd_db?authSource=admin"
+}
+```
+
+### Do not pre-register `IMongoDatabase` as Scoped
+
+Registering `IMongoDatabase` with `AddScoped` before `AddElsa` prevents Elsa's `UseMongoDb` (which uses `TryAddSingleton`) from registering its own. Elsa's singleton workflow stores then capture a scoped dependency, causing a scope validation error at startup in Development mode. Let Elsa own both `IMongoClient` and `IMongoDatabase`.
+
+### Do not call `app.UseAuthentication()` / `app.UseAuthorization()` manually
+
+`UseWorkflowsApi()` calls these internally as part of its FastEndpoints pipeline. Adding them again in the outer pipeline conflicts with Elsa's identity scheme setup.
+
+### CORS — `app.UseCors()` must be first
+
+CORS middleware must be registered before `UseExceptionHandler` so that CORS headers are present on **all** responses, including error responses. The Studio makes cross-origin requests (`localhost:6002` → `localhost:5158`) and will show "An unhandled error has occurred" if CORS headers are missing from any response it receives.
 
 ---
 
