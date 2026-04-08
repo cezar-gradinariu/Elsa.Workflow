@@ -6,6 +6,7 @@ using Elsa.Workflow.Application.Queries;
 using Elsa.Workflow.Application.Workflows;
 using Elsa.Workflow.Domain.Repositories;
 using Elsa.Workflow.Infrastructure.Repositories;
+using Microsoft.AspNetCore.Mvc.Controllers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -72,13 +73,19 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
 
-// Swagger — exclude Elsa's FastEndpoints routes to avoid schemaId conflicts
-// caused by Elsa's generic types (e.g. ListResponse<T> where T has the same
-// simple name across different namespaces). Only our domain controllers are documented.
+// Two Swagger docs: one for domain controllers, one for Elsa's FastEndpoints.
+// We discriminate using ControllerActionDescriptor — our MVC controllers use it,
+// Elsa's FastEndpoints do not. The old approach (Contains("Elsa")) broke because
+// every action in this solution has "Elsa" in its display name due to the namespace.
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new() { Title = "Elsa.Workflow.Api", Version = "v1" });
-    c.DocInclusionPredicate((_, api) => api.ActionDescriptor.DisplayName?.Contains("Elsa") != true);
+    c.SwaggerDoc("v1", new() { Title = "Domain API", Version = "v1" });
+    c.SwaggerDoc("elsa", new() { Title = "Elsa Workflow API", Version = "v1" });
+    c.DocInclusionPredicate((docName, api) =>
+    {
+        var isController = api.ActionDescriptor is ControllerActionDescriptor;
+        return docName == "v1" ? isController : !isController;
+    });
     c.CustomSchemaIds(type => type.FullName);
 });
 
@@ -98,7 +105,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Elsa.Workflow.Api v1");
+        // Domain API listed first so it is the default selection in the dropdown.
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Domain API");
+        c.SwaggerEndpoint("/swagger/elsa/swagger.json", "Elsa Workflow API");
     });
 }
 
