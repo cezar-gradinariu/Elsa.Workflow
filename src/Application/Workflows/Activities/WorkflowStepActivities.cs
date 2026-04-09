@@ -1,4 +1,7 @@
+using Elsa.Extensions;
 using Elsa.Workflows;
+using Elsa.Workflows.Attributes;
+using Elsa.Workflows.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Elsa.Workflow.Application.Workflows.Activities;
@@ -37,10 +40,22 @@ public sealed class PrepareApiCallActivity : CodeActivity
 
 public sealed class ApiCallCompletedActivity : CodeActivity
 {
+    // Input<T>(Variable) uses the public non-generic Variable base class constructor.
+    // Do NOT use Input<T>(Variable<T>) — that resolves to the protected
+    // Input(MemoryBlockReference, Type) overload and causes a compile error.
+    [Input(Description = "The API response captured from CallExternalApiActivity")]
+    public Input<string>? ApiResponse { get; set; }
+
     protected override ValueTask ExecuteAsync(ActivityExecutionContext context)
     {
         var logger = context.GetRequiredService<ILogger<ApiCallCompletedActivity>>();
-        logger.LogInformation("📡 STEP 4: HTTP request to JSONPlaceholder API completed");
+        var response = context.Get(ApiResponse);
+
+        // JournalData is stored in the ActivityExecutionRecord — visible in Studio's
+        // execution log under this activity's "Journal" tab.
+        context.JournalData["ApiResponse"] = response ?? "(empty)";
+
+        logger.LogInformation("API call completed. Response: {Response}", response);
         return ValueTask.CompletedTask;
     }
 }

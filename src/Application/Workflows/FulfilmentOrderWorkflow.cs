@@ -1,5 +1,6 @@
 using Elsa.Workflows;
 using Elsa.Workflows.Activities;
+using Elsa.Workflows.Memory;
 using Elsa.Workflows.Models;
 using Elsa.Scheduling.Activities;
 using Elsa.Workflow.Application.Workflows.Activities;
@@ -34,47 +35,38 @@ public class FulfilmentOrderWorkflow : WorkflowBase
         workflow.DefinitionId = DefinitionId;
         workflow.Version = 1;
 
-        // FulfilmentOrderId is the only data carried in workflow state.
-        // Activities resolve the aggregate from the repository using this ID.
-        workflow.WithVariable<string>(FulfilmentOrderIdVar);
+        // Variable<T>(string name, T defaultValue) is the correct named constructor.
+        // WithVariable<T>(string) resolves to WithVariable<T>(T defaultValue) — the string
+        // becomes the DEFAULT VALUE, not the name. Always use new Variable<T> explicitly.
+        var fulfilmentOrderIdVar = new Variable<string>(FulfilmentOrderIdVar, null!);
+        var apiResponseVar       = new Variable<string>("ApiResponse",        null!);
 
-        // TODO (ADR-013): Replace this placeholder with the full activity sequence:
-        //
-        //   new Sequence
-        //   {
-        //       Activities =
-        //       [
-        //           new CallOfaActivity(),         // Resilient OFA HTTP call
-        //           new ApplyAllocationActivity(),  // Updates aggregate via domain method
-        //           new SuspendFulfilmentActivity(),// Bookmark — awaits next trigger
-        //       ]
-        //   }
-        //
-        // CallOfaActivity uses the named HttpClient("OFA") registered in Infrastructure
-        // with Polly retry + circuit breaker (ADR-006).
+        workflow.WithVariable(fulfilmentOrderIdVar);
+        workflow.WithVariable(apiResponseVar);
+
         workflow.Root = new Sequence
         {
-            Activities = 
+            Activities =
             [
-                // Step 1: Initial workflow start notification  
                 new WorkflowStartedActivity(),
-                
-                // Step 2: Prepare for 1-minute delay
-                new PrepareDelayActivity(),
+
                 new Delay(TimeSpan.FromSeconds(10)),
-                
-                // Step 3: Prepare for external API call
-                new PrepareApiCallActivity(),
+
                 new CallExternalApiActivity
                 {
-                    Url = new Input<string>("https://jsonplaceholder.typicode.com/posts/1")
+                    Url = new Input<string>("https://jsonplaceholder.typicode.com/posts/1"),
+                    // Wire the output to the workflow variable so its value persists in
+                    // workflow instance state and is visible in Elsa Studio's Variables panel.
+                    Result = new Output<string>(apiResponseVar)
                 },
-                new ApiCallCompletedActivity(),
-                
-                // Step 4: Begin finalization process
-                new BeginFinalizationActivity(), 
-                
-                // Step 5: Mark workflow as completed  
+
+                new ApiCallCompletedActivity
+                {
+                    // Cast to non-generic Variable to hit the public Input<T>(Variable) constructor.
+                    // Input<T>(Variable<T>) resolves to the protected MemoryBlockReference overload.
+                    ApiResponse = new Input<string>((Variable)apiResponseVar)
+                },
+
                 new WorkflowCompletedActivity()
             ]
         };

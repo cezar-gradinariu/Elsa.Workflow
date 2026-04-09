@@ -1,7 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet list:*)",
+      "Bash(dotnet fsi:*)",
+      "Bash(powershell -Command 'Add-Type -Path '\\\\''C:\\\\Users\\\\1230075\\\\.nuget\\\\packages\\\\elsa.workflows.core\\\\3.6.0\\\\lib\\\\net9.0\\\\Elsa.Workflows.Core.dll'\\\\'' -ErrorAction SilentlyContinue; [System.Reflection.Assembly]::LoadFrom\\('\\\\''C:\\\\Users\\\\1230075\\\\.nuget\\\\packages\\\\elsa.workflows.core\\\\3.6.0\\\\lib\\\\net9.0\\\\Elsa.Workflows.Core.dll'\\\\''\\).GetTypes\\(\\) | Where-Object { $_.Name -like '\\\\''Input*'\\\\'' } | Select-Object -ExpandProperty FullName')",
+      "Bash(cp \"C:/Users/1230075/.nuget/packages/elsa.workflows.core/3.6.0/elsa.workflows.core.3.6.0.nupkg\" .)",
+      "Bash(unzip -l elsa.workflows.core.3.6.0.nupkg)",
+      "Bash(mongosh 'mongodb://admin:admin@localhost:27017/elsa_ddd_db?authSource=admin' --quiet --eval ':*)",
+      "Bash(where mongosh:*)",
+      "Bash(where mongo:*)",
+      "Read(//c/Program Files/**)",
+      "Bash(powershell -Command \"Get-Command mongosh -ErrorAction SilentlyContinue; Get-Command mongo -ErrorAction SilentlyContinue; Get-ChildItem 'C:\\\\Program Files\\\\MongoDB\\\\' -ErrorAction SilentlyContinue | Select Name\")",
+      "Bash(powershell -Command ':*)",
+      "Bash(powershell -Command \"Get-ChildItem -Path 'C:\\\\' -Filter 'mongosh.exe' -Recurse -ErrorAction SilentlyContinue -Depth 6 | Select FullName\")",
+      "Bash(docker exec elsaworkflow-mongodb-1 mongosh 'mongodb://admin:admin@localhost:27017/elsa_ddd_db?authSource=admin' --quiet --eval ':*)"
     ]
   }
 }
