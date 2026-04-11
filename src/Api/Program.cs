@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Elsa.Extensions;
 using Elsa.Workflow.Api.Middleware;
 using Elsa.Workflow.Infrastructure.Extensions;
@@ -9,6 +10,12 @@ using Elsa.Workflow.Infrastructure.Repositories;
 using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Elsa background services (JobRunnerHostedService, BackgroundEventPublisherHostedService)
+// throw OperationCanceledException / ObjectDisposedException during graceful shutdown —
+// these are expected teardown artifacts, not real failures.
+builder.Services.Configure<HostOptions>(o =>
+    o.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
 
 // ─── MongoDB ─────────────────────────────────────────────────────────────────
 builder.Services.AddSingleton<IMongoClient>(_ =>
@@ -43,6 +50,9 @@ builder.Services.AddElsa(elsa =>
     // Elsa.Persistence.MongoDb references out of the Api layer (ADR-001/003).
     elsa.UseElsaMongoDb(connectionString, databaseName);
 
+    // Expose the Elsa REST API (FastEndpoints) consumed by the embedded Studio (ADR-007).
+    elsa.UseWorkflowsApi(_ => { });
+
     // Register code-first workflow definitions from the Application assembly.
     elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();
 });
@@ -67,8 +77,26 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Redirect root so http://localhost:5158 lands somewhere useful.
+app.MapGet("/", () => Results.Redirect("/studio"));
+
+// Serve Elsa Studio WASM static assets.
+// Static web assets from the co-built Studio project are picked up automatically
+// by UseStaticFiles() in .NET 8+ — UseBlazorFrameworkFiles() is no longer needed.
+app.UseStaticFiles();
+
 app.UseAuthorization();
 app.MapControllers();
+
+// ─── Elsa REST API ────────────────────────────────────────────────────────────
+// Exposes workflow management endpoints at /elsa/api consumed by the Studio.
+// Both /elsa/api and /studio should be blocked at the ingress on the
+// customer-facing listener — do not rely solely on application-level auth.
+app.UseWorkflowsApi("elsa/api");
+
+// SPA fallback: any /studio/* request that does not match a file or API route
+// is handed to the Studio index.html so client-side routing works.
+app.MapFallbackToFile("studio/{**path:nonfile}", "index.html");
 
 app.Run();
 

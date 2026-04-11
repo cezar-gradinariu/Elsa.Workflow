@@ -1,5 +1,7 @@
 <Solution>
-  <Folder Name="/src/" />
+  <Folder Name="/src/">
+    <Project Path="src/Studio/Elsa.Workflow.Studio.csproj" />
+  </Folder>
   <Folder Name="/src/Api/">
     <Project Path="src/Api/Elsa.Workflow.Api.csproj" />
   </Folder>

@@ -63,8 +63,11 @@ Solution.sln
 
 ## External References
 
+> **Elsa reference priority:** Always consult the [Elsa GitBook](https://github.com/elsa-workflows/elsa-gitbook) **first** for authoritative guides, recipes, and API documentation. Fall back to source code and other resources only if the GitBook does not cover the topic.
+
 | Resource | URL |
 |----------|-----|
+| **Elsa GitBook (primary reference)** | [github.com/elsa-workflows/elsa-gitbook](https://github.com/elsa-workflows/elsa-gitbook) |
 | Elsa Workflows documentation | [docs.elsaworkflows.io](https://docs.elsaworkflows.io/) |
 | Elsa GitHub repository | [github.com/elsa-workflows/elsa-core](https://github.com/elsa-workflows/elsa-core) |
 | Testcontainers for .NET | [dotnet.testcontainers.org](https://dotnet.testcontainers.org/) |

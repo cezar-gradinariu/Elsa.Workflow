@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Blazor WASM hosting — must be explicit; not provided implicitly by the SDK. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.5" PrivateAssets="all" />
+    <PackageReference Include="Elsa.Studio" Version="3.6.0" />
+    <PackageReference Include="Elsa.Studio.Core.BlazorWasm" Version="3.6.0" />
+    <PackageReference Include="Elsa.Studio.Dashboard" Version="3.6.0" />
+    <PackageReference Include="Elsa.Studio.Login.BlazorWasm" Version="3.6.0" />
+    <PackageReference Include="Elsa.Studio.Workflows" Version="3.6.0" />
+    <PackageReference Include="Elsa.Studio.Workflows.Designer" Version="3.6.0" />
+    <PackageReference Include="Elsa.Api.Client" Version="3.6.0" />
+  </ItemGroup>
+
+</Project>
