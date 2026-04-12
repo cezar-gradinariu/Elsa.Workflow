@@ -131,15 +131,20 @@ public enum AllocationStatus { Pending, FullyAllocated, PartiallyAllocated, Unal
 
 ### Resilience
 
-`CallOfaActivity` wraps its HTTP call through the named `HttpClient("OFA")` registered in Infrastructure with `.AddStandardResilienceHandler()` (ADR-006, Option A). Polly exhaustion triggers durable Level-2 Elsa suspend/resume per ADR-004.
+`CallOfaActivity` implements `IResilientActivity` and declares `OfaResilienceStrategy` (retry × 3 + circuit breaker) via `CustomProperties["resilienceStrategy"]`. `IResilientActivityInvoker.InvokeAsync` wraps the HTTP action in the Polly pipeline at execution time — no `.AddStandardResilienceHandler()` on the `HttpClient` (ADR-006, Option A revised).
+
+If Polly exhausts all retries the exception propagates and Elsa marks the workflow `Faulted` (Level-2 per ADR-004). An operator can resume via the Elsa Alterations API (OQ-3 — pending product decision on auto-cancel vs. manual retry).
+
+Retry history is recorded per activity instance and queryable at `GET /elsa/api/resilience/retries/{activityInstanceId}`.
 
 ### After successful allocation
 
-1. `CallOfaActivity` calls `FulfilmentOrder.ApplyAllocation(...)`.
-2. Repository saves the updated aggregate (optimistic concurrency check on `Version`).
-3. Workflow suspends (bookmark) — awaiting next trigger.
+1. `CallOfaActivity` maps the OFA HTTP response to `OrderAllocationResult` (Application DTO → Domain value object).
+2. Calls `FulfilmentOrder.ApplyAllocation(result)` — domain validation runs here.
+3. `IFulfilmentOrderRepository.UpdateAsync` persists the updated aggregate (optimistic concurrency check on `Version`).
+4. Workflow proceeds to next activity (TODO: `SuspendFulfilmentActivity` — bookmark awaiting next trigger).
 
-The workflow does **not** go to `Completed` here; the bookmark enables future resumption for downstream process steps.
+The workflow does **not** go to `Completed` after allocation; a future bookmark will suspend it for downstream process steps.
 
 ## Open Questions
 

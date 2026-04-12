@@ -19,7 +19,18 @@
       "Read(//c/Users/cezar/**)",
       "Bash(docker run:*)",
       "Bash(cat /c/Users/cezar/.nuget/packages/elsa.persistence.mongodb/3.6.0/*.nuspec)",
-      "Bash(cat /c/Users/cezar/.nuget/packages/elsa.workflows.runtime/3.6.0/*.nuspec)"
+      "Bash(cat /c/Users/cezar/.nuget/packages/elsa.workflows.runtime/3.6.0/*.nuspec)",
+      "Bash(wait echo:*)",
+      "Bash(grep -r \"Resilience\\\\|features/installed\\\\|FeaturesInstalled\" /c/Users/cezar/.nuget/packages/elsa.studio.workflows/*/lib/net*/Elsa.Studio.Workflows.xml)",
+      "Bash(find /c/Users/cezar/.nuget/packages/elsa.resilience* -name \"*.xml\")",
+      "Bash(python3 -c \" import json, sys data = json.load\\(sys.stdin\\) libs = data.get\\('libraries', {}\\) for k in libs: if 'resilience' in k.lower\\(\\): print\\(k, libs[k].get\\('files', []\\)\\) \")",
+      "Bash(cp \"/c/Users/cezar/.nuget/packages/elsa.resilience.core/3.6.0/lib/net10.0/Elsa.Resilience.Core.dll\" .)",
+      "Bash(dotnet-script)",
+      "Bash(dotnet tool:*)",
+      "Bash(ilspycmd \"/c/Users/cezar/.nuget/packages/elsa.resilience.core/3.6.0/lib/net10.0/Elsa.Resilience.Core.dll\")",
+      "Bash(ilspycmd \"/c/Users/cezar/.nuget/packages/elsa.resilience/3.6.0/lib/net10.0/Elsa.Resilience.dll\")",
+      "Bash(grep -r \"SerializeToNode\\\\|ResilienceStrategyConfig\\\\|resilienceStrategy\\\\|ResilienceStrategyKey\" /c/Users/cezar/.nuget/packages/elsa.resilience*/3.6.0/lib/net10.0/*.xml)",
+      "Bash(grep -ri \"SetResilienceStrategy\\\\|GetStrategyConfig\\\\|ResilienceActivityExtensions\\\\|ActivityExtensions\" /c/Users/cezar/.nuget/packages/elsa.resilience*/3.6.0/lib/net10.0/*.xml)"
     ],
     "additionalDirectories": [
       "C:\\Users\\cezar"

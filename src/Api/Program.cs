@@ -1,4 +1,8 @@
+using Elsa.Resilience;
+using Elsa.Resilience.Extensions;
+using Elsa.Workflow.Application.Resilience;
 using FastEndpoints.Swagger;
+using Microsoft.OpenApi;
 using Microsoft.Extensions.Hosting;
 using Elsa.Extensions;
 using Elsa.Workflow.Api.Middleware;
@@ -68,12 +72,29 @@ builder.Services.AddElsa(elsa =>
     // challenge scheme and throws InvalidOperationException on every protected request.
     elsa.UseDefaultAuthentication();
 
+    // Elsa.Resilience — Level-1 fast retry + circuit breaker for workflow activities.
+    // AddResilienceStrategyType registers OfaResilienceStrategy for JSON serialization
+    // so the Studio can discover and display it in the strategy picker (ADR-006).
+    elsa.UseResilience(r => r.AddResilienceStrategyType(typeof(OfaResilienceStrategy)));
+
     // Expose the Elsa REST API (FastEndpoints) consumed by the embedded Studio (ADR-007).
     elsa.UseWorkflowsApi(_ => { });
 
     // Register code-first workflow definitions from the Application assembly.
     elsa.AddWorkflowsFrom<FulfilmentOrderWorkflow>();
 });
+
+// ─── Resilience strategy source ──────────────────────────────────────────────
+// Makes OfaResilienceStrategy discoverable by IResilienceStrategyCatalog so that
+// CallOfaActivity can reference it by ID and the Studio can list it (ADR-006).
+builder.Services.AddScoped<IResilienceStrategySource, ApplicationResilienceStrategySource>();
+
+// ─── External HTTP clients ────────────────────────────────────────────────────
+// Named HttpClient("OFA"): base address only — no resilience handler here.
+// Retry and circuit breaker are owned by OfaResilienceStrategy and applied
+// transparently by IResilientActivityInvoker inside CallOfaActivity (ADR-006).
+var ofaBaseUrl = builder.Configuration["ExternalApis:Ofa:BaseUrl"]!;
+builder.Services.AddOfaHttpClient(ofaBaseUrl);
 
 // ─── API / ProblemDetails ────────────────────────────────────────────────────
 builder.Services.AddControllers();
@@ -88,6 +109,18 @@ builder.Services.AddSwaggerGen(c =>
     // MVC controllers only; Elsa endpoints are covered by the NSwag doc below.
     c.DocInclusionPredicate((_, api) =>
         api.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor);
+    // Bearer auth — OpenApi 2.x types live in Microsoft.OpenApi (no Models sub-namespace).
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "Enter JWT token (obtain from POST /elsa/api/identity/login with admin / password)"
+    });
+    c.AddSecurityRequirement(doc => new OpenApiSecurityRequirement
+    {
+        { new OpenApiSecuritySchemeReference("Bearer", doc, null), [] }
+    });
 });
 
 // FastEndpoints.Swagger (NSwag) document for Elsa's workflow management endpoints.
@@ -101,7 +134,7 @@ builder.Services.SwaggerDocument(o =>
         s.Version = "v1";
     };
     o.ExcludeNonFastEndpoints = true; // only Elsa FastEndpoints, not our controllers
-    o.EnableJWTBearerAuth = false;
+    o.EnableJWTBearerAuth = true;
     o.ShortSchemaNames = true;
 });
 

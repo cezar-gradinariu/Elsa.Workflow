@@ -1,11 +1,12 @@
 # ADR-004: Two-Level Resilience Strategy for External Calls
 
 **Status:** Accepted  
-**Date:** 2026-04-03
+**Date:** 2026-04-03  
+**Updated:** 2026-04-12
 
 ## Context
 
-Workflow activities must call external HTTP APIs and message brokers. These calls can fail transiently (brief network blip) or for sustained periods (service outage, circuit open). Elsa has no built-in retry or fault-recovery mechanism at the activity level beyond recording an `Incident`. A failed activity that faults the workflow is unacceptable — the workflow must recover automatically.
+Workflow activities must call external HTTP APIs and message brokers. These calls can fail transiently (brief network blip) or for sustained periods (service outage, circuit open). A failed activity that faults the workflow is unacceptable — the workflow must recover automatically.
 
 ## Decision
 
@@ -13,62 +14,70 @@ Apply two independent resilience layers operating at different timescales:
 
 | Level | Mechanism | Where | Timescale | Handles |
 |-------|-----------|-------|-----------|---------|
-| 1 — Fast | Polly retry + circuit breaker | Infrastructure | ms → seconds | Transient blips, brief 5xx, network hiccups |
-| 2 — Durable | Elsa bookmark suspend + scheduled resume | Application (activity) | minutes → hours | Sustained outage, Polly exhausted, circuit open |
+| 1 — Fast | `Elsa.Resilience` (`IResilienceStrategy` + `IResilientActivityInvoker`) | Application (activity) | ms → seconds | Transient blips, brief 5xx, network hiccups |
+| 2 — Durable | Elsa workflow reaches `Faulted`; operator resumes via Alterations API | Elsa runtime | minutes → hours | Level-1 exhausted, sustained outage |
 
-Activities in `Application` never call `HttpClient` or broker SDKs directly — they call an injected interface; `Infrastructure` owns all Polly wiring. See [ADR-001](001-ddd-layer-structure.md) for the dependency rule.
+Activities in `Application` call `IResilientActivityInvoker.InvokeAsync`, which wraps the action in the Polly pipeline configured by the activity's named `IResilienceStrategy`. The named `HttpClient` in `Infrastructure` carries only the base address and a hard timeout — no `.AddStandardResilienceHandler()`.
 
-**Level 1 — Polly (Infrastructure)**
+**Level 1 — Elsa.Resilience (Application)**
 
-HTTP calls use `Microsoft.Extensions.Http.Resilience` on named `HttpClient` registrations. Non-HTTP calls use `ResiliencePipelineBuilder` directly. See [ADR-006](006-circuit-breaker.md) for circuit breaker specifics.
-
-**Level 2 — Elsa Durable Retry (Application)**
-
-When Polly exhausts all retries, the exception reaches the activity. The activity catches it, increments a retry counter stored in workflow variables, creates a delayed bookmark, and suspends. The workflow state persists to MongoDB. After the delay the workflow resumes and Polly runs again from scratch.
+Each external-facing activity declares which `IResilienceStrategy` to use via its `CustomProperties["resilienceStrategy"]`. The `IResilientActivityInvoker` service resolves the strategy at execution time and runs the Polly pipeline transparently.
 
 ```csharp
-public class CallPaymentApiActivity : Activity
+public class CallOfaActivity : Activity, IResilientActivity
 {
-    private readonly IPaymentGateway _gateway;
+    public CallOfaActivity()
+    {
+        CustomProperties["resilienceStrategy"] = new ResilienceStrategyConfig
+        {
+            Mode       = ResilienceStrategyConfigMode.Identifier,
+            StrategyId = OfaResilienceStrategy.StrategyId,
+        }.SerializeToNode();
+    }
 
     protected override async ValueTask ExecuteAsync(ActivityExecutionContext context)
     {
-        var attempt = context.GetVariable<int>("_retryAttempt");
+        var invoker = context.WorkflowExecutionContext.ServiceProvider
+            .GetRequiredService<IResilientActivityInvoker>();
 
-        try
-        {
-            var result = await _gateway.ChargeAsync(/* ... */);
-            context.SetVariable("_retryAttempt", 0);
-            context.SetOutput("Result", result);
-        }
-        catch (Exception ex) when (attempt < MaxDurableRetries)
-        {
-            var delay = TimeSpan.FromMinutes(Math.Pow(2, attempt)); // 1m, 2m, 4m…
-            context.SetVariable("_retryAttempt", attempt + 1);
-
-            context.CreateBookmark(new CreateBookmarkArgs
-            {
-                BookmarkName = "DurableRetry",
-                Payload      = context.ActivityId,
-                Callback     = ResumeAsync,
-                AutoComplete = false,
-            });
-
-            await context.ScheduleDelayAsync(delay, context.CancellationToken);
-        }
-        catch (Exception ex)
-        {
-            // MaxDurableRetries exceeded — fault visibly for operator intervention
-            await context.ScheduleFaultActivityAsync(ex);
-        }
+        var result = await invoker.InvokeAsync<OfaAllocationResponse>(
+            activity:          this,
+            context:           context,
+            action:            async () => /* HTTP call */,
+            cancellationToken: context.CancellationToken);
     }
 
-    private async ValueTask ResumeAsync(ActivityExecutionContext context)
-        => await ExecuteAsync(context);
-
-    private const int MaxDurableRetries = 5;
+    public IDictionary<string, string?> CollectRetryDetails(
+        ActivityExecutionContext context, RetryAttempt attempt)
+        => new Dictionary<string, string?> { ["exception"] = attempt.Exception?.GetType().Name };
 }
 ```
+
+Each strategy implements `IResilienceStrategy` and configures a Polly pipeline (see [ADR-006](006-circuit-breaker.md)):
+
+```csharp
+public class OfaResilienceStrategy : IResilienceStrategy
+{
+    public string Id          { get; set; } = "ofa-resilience";
+    public string DisplayName { get; set; } = "OFA Retry + Circuit Breaker";
+
+    public Task ConfigurePipeline<T>(ResiliencePipelineBuilder<T> builder, ResilienceContext ctx)
+    {
+        builder
+            .AddRetry(new RetryStrategyOptions<T> { MaxRetryAttempts = 3, /* … */ })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<T> { /* … */ });
+        return Task.CompletedTask;
+    }
+}
+```
+
+Strategies are discovered via `IResilienceStrategySource` and listed in `IResilienceStrategyCatalog`. Retry history per activity instance is persisted by `IRetryAttemptRecorder` and queryable via `GET /elsa/api/resilience/retries/{activityInstanceId}`.
+
+**Level 2 — Fault + Alterations API (current)**
+
+When Polly exhausts all retries, the exception propagates from `IResilientActivityInvoker.InvokeAsync`. Elsa catches it and records the workflow as `Faulted`. An operator can then use the Elsa Alterations API to retry or skip the faulted activity.
+
+This satisfies OQ-3 from ADR-013 pending a product decision. A fully durable Level-2 retry (bookmark suspend + scheduled resume) may be implemented in a future iteration once the retry policy (max attempts, delay schedule) is confirmed.
 
 **Optional: uniform fault interception via `IIncidentStrategy`**
 
@@ -79,7 +88,7 @@ public class SuspendOnFaultIncidentStrategy : IIncidentStrategy
 {
     public async ValueTask HandleAsync(ActivityExecutionContext context, Exception exception)
     {
-        context.WorkflowExecutionContext.Incidents.Add(new ActivityIncident(/* ... */));
+        context.WorkflowExecutionContext.Incidents.Add(new ActivityIncident(/* … */));
         await context.SuspendAsync();
     }
 }
@@ -89,12 +98,11 @@ public class SuspendOnFaultIncidentStrategy : IIncidentStrategy
 ## Consequences
 
 **Positive:**
-- Workflows are self-healing for both transient and sustained failures — no operator intervention needed until `MaxDurableRetries` is exceeded.
-- Durable retry state survives process restarts — stored in MongoDB.
-- When durable retries exhaust, the workflow reaches `Faulted` state where an operator can use the Alterations API to retry or skip the activity.
-- Infrastructure resilience is fully decoupled from Application activity code.
+- Level-1 resilience is first-class in Elsa: retry history is visible in Studio, strategies are discoverable via the REST API, and the pipeline is configured alongside the activity rather than buried in Infrastructure DI wiring.
+- No `.AddStandardResilienceHandler()` on `HttpClient` — single source of truth for retry policy, no risk of double-retry.
+- Retry telemetry is recorded per activity instance via `IRetryAttemptRecorder`.
 
 **Negative:**
-- Each activity that calls external I/O needs the try/catch durable-retry pattern — boilerplate unless `IIncidentStrategy` is used uniformly.
-- The circuit breaker state is per-process (in-memory). After a durable suspend + resume, a restarted process resets the circuit — acceptable for v1 single-instance; needs a distributed circuit store for multi-instance (deferred).
-- `MaxDurableRetries` is a constant — making it configurable per-activity type is future work.
+- Activities that call external I/O must implement `IResilientActivity` and set `CustomProperties["resilienceStrategy"]` — a small contract requirement vs. plain `CodeActivity`.
+- Level-2 durable retry (suspend + resume) is not yet implemented. Until it is, a sustained OFA outage eventually faults the workflow and requires operator action.
+- Circuit breaker state is per-process (in-memory Polly). After a process restart the circuit resets — acceptable for v1 single-instance; needs a distributed circuit store for multi-instance (deferred).
