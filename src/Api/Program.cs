@@ -28,6 +28,10 @@ builder.Services.AddScoped<
     DeleteFulfilmentOrderCommandHandler>();
 
 builder.Services.AddScoped<
+    ICommandHandler<ApproveFulfilmentOrderCommand>,
+    ApproveFulfilmentOrderCommandHandler>();
+
+builder.Services.AddScoped<
     IQueryHandler<GetFulfilmentOrderQuery, GetFulfilmentOrderResult>,
     GetFulfilmentOrderQueryHandler>();
 

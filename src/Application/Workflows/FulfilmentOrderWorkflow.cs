@@ -4,6 +4,7 @@ using Elsa.Workflows.Memory;
 using Elsa.Workflows.Models;
 using Elsa.Scheduling.Activities;
 using Elsa.Workflow.Application.Workflows.Activities;
+using If = Elsa.Workflows.Activities.If;
 
 namespace Elsa.Workflow.Application.Workflows;
 
@@ -40,9 +41,11 @@ public class FulfilmentOrderWorkflow : WorkflowBase
         // becomes the DEFAULT VALUE, not the name. Always use new Variable<T> explicitly.
         var fulfilmentOrderIdVar = new Variable<string>(FulfilmentOrderIdVar, null!);
         var apiResponseVar       = new Variable<string>("ApiResponse",        null!);
+        var approvedVar          = new Variable<bool>  ("Approved",           false);
 
         workflow.WithVariable(fulfilmentOrderIdVar);
         workflow.WithVariable(apiResponseVar);
+        workflow.WithVariable(approvedVar);
 
         workflow.Root = new Sequence
         {
@@ -50,7 +53,7 @@ public class FulfilmentOrderWorkflow : WorkflowBase
             [
                 new WorkflowStartedActivity(),
 
-                new Delay(TimeSpan.FromSeconds(10)),
+                //new Delay(TimeSpan.FromSeconds(10)),
 
                 new CallExternalApiActivity
                 {
@@ -65,6 +68,20 @@ public class FulfilmentOrderWorkflow : WorkflowBase
                     // Cast to non-generic Variable to hit the public Input<T>(Variable) constructor.
                     // Input<T>(Variable<T>) resolves to the protected MemoryBlockReference overload.
                     ApiResponse = new Input<string>((Variable)apiResponseVar)
+                },
+
+                // Suspend here until POST /fulfilments/{id}/approve is called.
+                new WaitForApprovalActivity
+                {
+                    Result = new Output<bool>(approvedVar)
+                },
+
+                // Branch on the approval result.
+                new If
+                {
+                    Condition = new Input<bool>((Variable)approvedVar),
+                    Then      = new ApprovalGrantedActivity(),
+                    Else      = new ApprovalRejectedActivity()
                 },
 
                 new WorkflowCompletedActivity()

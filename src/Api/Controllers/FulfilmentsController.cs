@@ -11,8 +11,9 @@ namespace Elsa.Workflow.Api.Controllers;
 [Route("api/fulfilments")]
 [Produces("application/json")]
 public sealed class FulfilmentsController(
-    ICommandHandler<CreateFulfilmentOrderCommand> createHandler,
-    ICommandHandler<DeleteFulfilmentOrderCommand> deleteHandler,
+    ICommandHandler<CreateFulfilmentOrderCommand>  createHandler,
+    ICommandHandler<DeleteFulfilmentOrderCommand>  deleteHandler,
+    ICommandHandler<ApproveFulfilmentOrderCommand> approveHandler,
     IQueryHandler<GetFulfilmentOrderQuery, GetFulfilmentOrderResult> getHandler)
     : ControllerBase
 {
@@ -64,6 +65,24 @@ public sealed class FulfilmentsController(
             new GetFulfilmentOrderQuery(FulfilmentOrderId.From(id)), ct);
 
         return Ok(FulfilmentOrderResponse.From(result.Order));
+    }
+
+    /// <summary>
+    /// Approves or rejects a fulfilment order, signalling the waiting workflow.
+    /// Approved = true  → logs success and completes the workflow.
+    /// Approved = false → logs rejection and terminates the workflow.
+    /// </summary>
+    /// <response code="204">Signal delivered successfully.</response>
+    /// <response code="404">No workflow is waiting for approval for this fulfilment order.</response>
+    [HttpPost("{id:guid}/approve")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Approve(Guid id, [FromBody] bool approved, CancellationToken ct)
+    {
+        await approveHandler.HandleAsync(
+            new ApproveFulfilmentOrderCommand(FulfilmentOrderId.From(id), approved), ct);
+
+        return NoContent();
     }
 
     /// <summary>

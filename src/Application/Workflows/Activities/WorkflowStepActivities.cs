@@ -79,3 +79,25 @@ public sealed class WorkflowCompletedActivity : CodeActivity
         return ValueTask.CompletedTask;
     }
 }
+
+public sealed class ApprovalGrantedActivity : CodeActivity
+{
+    protected override ValueTask ExecuteAsync(ActivityExecutionContext context)
+    {
+        var logger = context.GetRequiredService<ILogger<ApprovalGrantedActivity>>();
+        logger.LogInformation("✅ APPROVAL GRANTED: FulfilmentOrder has been approved. Proceeding.");
+        Console.WriteLine("✅ APPROVAL GRANTED: FulfilmentOrder has been approved. Proceeding.");
+        return ValueTask.CompletedTask;
+    }
+}
+
+public sealed class ApprovalRejectedActivity : CodeActivity
+{
+    protected override ValueTask ExecuteAsync(ActivityExecutionContext context)
+    {
+        var logger = context.GetRequiredService<ILogger<ApprovalRejectedActivity>>();
+        logger.LogInformation("❌ APPROVAL REJECTED: FulfilmentOrder was rejected. Terminating workflow.");
+        Console.WriteLine("❌ APPROVAL REJECTED: FulfilmentOrder was rejected. Terminating workflow.");
+        return ValueTask.CompletedTask;
+    }
+}
