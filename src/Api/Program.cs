@@ -50,6 +50,23 @@ builder.Services.AddElsa(elsa =>
     // Elsa.Persistence.MongoDb references out of the Api layer (ADR-001/003).
     elsa.UseElsaMongoDb(connectionString, databaseName);
 
+    // JWT-based identity: provides /elsa/api/identity/login and secures all
+    // Elsa REST endpoints with Bearer tokens. Default credentials: admin / password.
+    elsa.UseIdentity(identity =>
+    {
+        identity.TokenOptions = opts =>
+        {
+            opts.SigningKey = builder.Configuration["ElsaIdentity:SigningKey"]!;
+            opts.AccessTokenLifetime = TimeSpan.FromDays(1);
+        };
+        identity.UseAdminUserProvider();
+    });
+
+    // Registers the default JWT+ApiKey policy scheme as the ASP.NET Core default
+    // authentication scheme. Without this UseAuthorization() has no default
+    // challenge scheme and throws InvalidOperationException on every protected request.
+    elsa.UseDefaultAuthentication();
+
     // Expose the Elsa REST API (FastEndpoints) consumed by the embedded Studio (ADR-007).
     elsa.UseWorkflowsApi(_ => { });
 
@@ -77,25 +94,53 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Redirect root so http://localhost:5158 lands somewhere useful.
-app.MapGet("/", () => Results.Redirect("/studio"));
+// Redirect root to the Studio entry point (trailing slash required so the
+// browser sets the correct base for relative asset resolution with
+// <base href="/studio/"> in index.html).
+app.MapGet("/", () => Results.Redirect("/studio/"));
 
 // Serve Elsa Studio WASM static assets.
-// Static web assets from the co-built Studio project are picked up automatically
-// by UseStaticFiles() in .NET 8+ — UseBlazorFrameworkFiles() is no longer needed.
-app.UseStaticFiles();
+// Two UseStaticFiles registrations are needed:
+//   1. Root (/): serves /_framework/, /_content/ etc. for direct/cached requests.
+//   2. /studio prefix: serves the same files under /studio/_framework/ etc. so
+//      that relative asset paths in index.html resolve correctly when
+//      <base href="/studio/"> is in effect.
+// ServeUnknownFileTypes covers Blazor WASM ICU .dat files which have no
+// registered MIME type in the default FileExtensionContentTypeProvider.
+var staticFileOptions = new StaticFileOptions
+{
+    ServeUnknownFileTypes = true,
+    DefaultContentType = "application/octet-stream"
+};
+app.UseStaticFiles(staticFileOptions);
+app.UseStaticFiles(new StaticFileOptions
+{
+    RequestPath = "/studio",
+    ServeUnknownFileTypes = true,
+    DefaultContentType = "application/octet-stream"
+});
 
+// UseRouting must precede UseAuthentication/UseAuthorization so the selected
+// endpoint is known when auth middleware runs (matches Elsa reference sample).
+app.UseRouting();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
 // ─── Elsa REST API ────────────────────────────────────────────────────────────
 // Exposes workflow management endpoints at /elsa/api consumed by the Studio.
+// UseWorkflowsApi (UseFastEndpoints) is used — not MapWorkflowsApi — because
+// FastEndpoints' permission-based authorization is handled internally by the
+// UseFastEndpoints middleware. MapFastEndpoints hands permission checks to
+// UseAuthorization() which lacks FastEndpoints' permission handlers → 401.
 // Both /elsa/api and /studio should be blocked at the ingress on the
 // customer-facing listener — do not rely solely on application-level auth.
 app.UseWorkflowsApi("elsa/api");
 
-// SPA fallback: any /studio/* request that does not match a file or API route
-// is handed to the Studio index.html so client-side routing works.
+// SPA fallback: any /studio/* request that does not match a file is served
+// index.html so Blazor client-side routing works for all Shell routes.
+// With <base href="/studio/"> the Shell routes to /studio/login,
+// /studio/workflows etc. which all match this pattern.
 app.MapFallbackToFile("studio/{**path:nonfile}", "index.html");
 
 app.Run();
