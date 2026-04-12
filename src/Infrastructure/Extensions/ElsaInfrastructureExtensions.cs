@@ -3,7 +3,10 @@ using Elsa.Features.Services;
 using Elsa.Persistence.MongoDb.Extensions;
 using Elsa.Persistence.MongoDb.Modules.Management;
 using Elsa.Persistence.MongoDb.Modules.Runtime;
+using Elsa.Workflow.Infrastructure.Serialization;
 using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 
 namespace Elsa.Workflow.Infrastructure.Extensions;
 
@@ -18,10 +21,28 @@ public static class ElsaInfrastructureExtensions
         string connectionString,
         string databaseName)
     {
+        // JsonObject has no IL-level parameterless constructor so MongoDB's default
+        // DictionaryInterfaceImplementerSerializer fails when reading
+        // ActivityExecutionContextState.Properties values. Register before Elsa
+        // wires up its own serializers so the lookup hits ours first.
+        RegisterJsonObjectSerializer();
+
         elsa.UseMongoDb(connectionString, opts => opts.DatabaseName = databaseName);
         elsa.UseWorkflowManagement(mgmt => mgmt.UseMongoDb(_ => { }));
         elsa.UseWorkflowRuntime(rt => rt.UseMongoDb(_ => { }));
         return elsa;
+    }
+
+    private static void RegisterJsonObjectSerializer()
+    {
+        try
+        {
+            BsonSerializer.RegisterSerializer(JsonObjectBsonSerializer.Instance);
+        }
+        catch (BsonSerializationException)
+        {
+            // Already registered (e.g. by an Elsa internal — ignore).
+        }
     }
 
     /// <summary>

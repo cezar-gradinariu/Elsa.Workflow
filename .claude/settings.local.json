@@ -30,7 +30,8 @@
       "Bash(ilspycmd \"/c/Users/cezar/.nuget/packages/elsa.resilience.core/3.6.0/lib/net10.0/Elsa.Resilience.Core.dll\")",
       "Bash(ilspycmd \"/c/Users/cezar/.nuget/packages/elsa.resilience/3.6.0/lib/net10.0/Elsa.Resilience.dll\")",
       "Bash(grep -r \"SerializeToNode\\\\|ResilienceStrategyConfig\\\\|resilienceStrategy\\\\|ResilienceStrategyKey\" /c/Users/cezar/.nuget/packages/elsa.resilience*/3.6.0/lib/net10.0/*.xml)",
-      "Bash(grep -ri \"SetResilienceStrategy\\\\|GetStrategyConfig\\\\|ResilienceActivityExtensions\\\\|ActivityExtensions\" /c/Users/cezar/.nuget/packages/elsa.resilience*/3.6.0/lib/net10.0/*.xml)"
+      "Bash(grep -ri \"SetResilienceStrategy\\\\|GetStrategyConfig\\\\|ResilienceActivityExtensions\\\\|ActivityExtensions\" /c/Users/cezar/.nuget/packages/elsa.resilience*/3.6.0/lib/net10.0/*.xml)",
+      "Bash(dotnet-script -)"
     ],
     "additionalDirectories": [
       "C:\\Users\\cezar"

@@ -1,3 +1,4 @@
+using Elsa.Extensions;
 using Elsa.Workflow.Application.Activities;
 using Elsa.Workflows;
 using Elsa.Workflows.Activities;
@@ -34,6 +35,17 @@ public class FulfilmentOrderWorkflow : WorkflowBase
         {
             Activities =
             [
+                // Elsa does not auto-map CreateAndRunWorkflowInstanceRequest.Input to
+                // workflow variables — it lands in WorkflowExecutionContext.Input.
+                // Copy it into the declared variable here so all downstream activities
+                // can use context.GetVariable<string>(FulfilmentOrderIdVar).
+                new Inline(ctx =>
+                {
+                    var input = ctx.WorkflowExecutionContext.Input;
+                    if (input?.TryGetValue(FulfilmentOrderIdVar, out var val) == true)
+                        ctx.SetVariable(FulfilmentOrderIdVar, val?.ToString());
+                    return ValueTask.CompletedTask;
+                }),
                 new CallOfaActivity(),   // OFA HTTP call — Level-1 resilience via Elsa.Resilience
                 // TODO: ApplyAllocationActivity  — applies domain method + persists aggregate
                 // TODO: SuspendFulfilmentActivity — bookmark awaiting next trigger
