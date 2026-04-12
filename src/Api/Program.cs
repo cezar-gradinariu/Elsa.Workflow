@@ -1,3 +1,4 @@
+using FastEndpoints.Swagger;
 using Microsoft.Extensions.Hosting;
 using Elsa.Extensions;
 using Elsa.Workflow.Api.Middleware;
@@ -79,7 +80,30 @@ builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "Fulfilment API", Version = "v1" });
+    // FastEndpoints 7.x registers through endpoint routing, so IApiDescriptionProvider
+    // surfaces Elsa endpoints to Swashbuckle. Restrict this document to our own
+    // MVC controllers only; Elsa endpoints are covered by the NSwag doc below.
+    c.DocInclusionPredicate((_, api) =>
+        api.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor);
+});
+
+// FastEndpoints.Swagger (NSwag) document for Elsa's workflow management endpoints.
+// 7.1.1 is already a transitive dep of Elsa.Workflows.Api — no extra package needed.
+builder.Services.SwaggerDocument(o =>
+{
+    o.DocumentSettings = s =>
+    {
+        s.DocumentName = "elsa";
+        s.Title = "Elsa Workflows API";
+        s.Version = "v1";
+    };
+    o.ExcludeNonFastEndpoints = true; // only Elsa FastEndpoints, not our controllers
+    o.EnableJWTBearerAuth = false;
+    o.ShortSchemaNames = true;
+});
 
 var app = builder.Build();
 
@@ -90,8 +114,22 @@ app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {
+    // Swashbuckle: serves our controller endpoints at /swagger/v1/swagger.json.
     app.UseSwagger();
-    app.UseSwaggerUI();
+
+    // NSwag/FastEndpoints.Swagger: serves Elsa endpoints at /openapi/elsa/swagger.json.
+    // The /openapi prefix avoids Swashbuckle intercepting /swagger/{name} requests
+    // and returning "Unknown Swagger document" before NSwag can handle them.
+    app.UseSwaggerGen(
+        cfg => cfg.Path = "/openapi/{documentName}/swagger.json",
+        ui  => ui.Path  = "/openapi/ui"); // FastEndpoints' own UI (not advertised)
+
+    // Unified Swagger UI with both documents in the dropdown.
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Fulfilment API");
+        c.SwaggerEndpoint("/openapi/elsa/swagger.json", "Elsa Workflows API");
+    });
 }
 
 // Redirect root to the Studio entry point (trailing slash required so the
