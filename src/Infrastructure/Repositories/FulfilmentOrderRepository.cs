@@ -6,6 +6,7 @@ using Elsa.Workflow.Domain.Repositories;
 using Elsa.Workflow.Domain.ValueObjects;
 using Elsa.Workflow.Infrastructure.Persistence.Documents;
 using MongoDB.Driver;
+using Container = Elsa.Workflow.Domain.ValueObjects.Container;
 
 namespace Elsa.Workflow.Infrastructure.Repositories;
 
@@ -69,12 +70,13 @@ public sealed class FulfilmentOrderRepository : IFulfilmentOrderRepository
     private static FulfilmentOrderDocument ToDocument(FulfilmentOrder order) =>
         new()
         {
-            Id         = order.Id.Value.ToString(),
-            StoreId    = order.StoreId.Value,
-            OrderId    = order.OrderId.Value,
-            Status     = order.Status.ToString(),
-            Version    = order.Version,
-            OrderLines = order.OrderLines.Select(ToOrderLineDocument).ToList()
+            Id             = order.Id.Value.ToString(),
+            StoreId        = order.StoreId.Value,
+            OrderId        = order.OrderId.Value,
+            Status         = order.Status.ToString(),
+            Version        = order.Version,
+            OrderLines     = order.OrderLines.Select(ToOrderLineDocument).ToList(),
+            PrepareReports = order.PrepareReports.Select(ToPrepareReportDocument).ToList()
         };
 
     private static OrderLineDocument ToOrderLineDocument(OrderLine line) =>
@@ -112,6 +114,22 @@ public sealed class FulfilmentOrderRepository : IFulfilmentOrderRepository
             .ToList()
             .AsReadOnly();
 
+        var prepareReports = doc.PrepareReports
+            .Select(r => new SubStorePrepareReport(
+                r.PrepareCommandId,
+                r.SubStoreId,
+                r.Containers
+                    .Select(c => new Container(
+                        c.ContainerId,
+                        c.Lines.Select(l => new ContainerLine(l.OrderLineNo, l.Quantity))
+                               .ToList()
+                               .AsReadOnly()))
+                    .ToList()
+                    .AsReadOnly(),
+                r.ReceivedAt))
+            .ToList()
+            .AsReadOnly();
+
         // Rehydrate the aggregate using its private-setter properties via reflection-free
         // reconstruction: Create + version injection via a dedicated Rehydrate factory.
         return FulfilmentOrder.Rehydrate(
@@ -120,6 +138,28 @@ public sealed class FulfilmentOrderRepository : IFulfilmentOrderRepository
             OrderId.From(doc.OrderId),
             orderLines,
             Enum.Parse<FulfilmentOrderStatus>(doc.Status),
-            doc.Version);
+            doc.Version,
+            prepareReports);
     }
+
+    private static PrepareReportDocument ToPrepareReportDocument(SubStorePrepareReport r) =>
+        new()
+        {
+            PrepareCommandId = r.PrepareCommandId,
+            SubStoreId       = r.SubStoreId,
+            ReceivedAt       = r.ReceivedAt,
+            Containers       = r.Containers
+                .Select(c => new ContainerDocument
+                {
+                    ContainerId = c.ContainerId,
+                    Lines = c.Lines
+                        .Select(l => new ContainerLineDocument
+                        {
+                            OrderLineNo = l.OrderLineNo,
+                            Quantity    = l.Quantity
+                        })
+                        .ToList()
+                })
+                .ToList()
+        };
 }

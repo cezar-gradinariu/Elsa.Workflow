@@ -31,7 +31,8 @@
       "Bash(ilspycmd \"/c/Users/cezar/.nuget/packages/elsa.resilience/3.6.0/lib/net10.0/Elsa.Resilience.dll\")",
       "Bash(grep -r \"SerializeToNode\\\\|ResilienceStrategyConfig\\\\|resilienceStrategy\\\\|ResilienceStrategyKey\" /c/Users/cezar/.nuget/packages/elsa.resilience*/3.6.0/lib/net10.0/*.xml)",
       "Bash(grep -ri \"SetResilienceStrategy\\\\|GetStrategyConfig\\\\|ResilienceActivityExtensions\\\\|ActivityExtensions\" /c/Users/cezar/.nuget/packages/elsa.resilience*/3.6.0/lib/net10.0/*.xml)",
-      "Bash(dotnet-script -)"
+      "Bash(dotnet-script -)",
+      "Bash(powershell -Command 'Add-Type -Path '\\\\''C:/Users/cezar/.nuget/packages/elsa.workflows.runtime/3.6.0/lib/net10.0/Elsa.Workflows.Runtime.dll'\\\\''; [System.Reflection.Assembly]::LoadFile\\('\\\\''C:/Users/cezar/.nuget/packages/elsa.workflows.runtime/3.6.0/lib/net10.0/Elsa.Workflows.Runtime.dll'\\\\''\\).GetTypes\\(\\) | Where-Object { $_.Name -match '\\\\''Bookmark'\\\\'' -and $_.IsInterface } | Select-Object FullName')"
     ],
     "additionalDirectories": [
       "C:\\Users\\cezar"

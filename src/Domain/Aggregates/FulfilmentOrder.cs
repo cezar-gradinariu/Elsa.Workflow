@@ -7,11 +7,19 @@ namespace Elsa.Workflow.Domain.Aggregates;
 
 public class FulfilmentOrder
 {
-    public FulfilmentOrderId        Id          { get; private set; }
-    public StoreId                  StoreId     { get; private set; }
-    public OrderId                  OrderId     { get; private set; }
-    public IReadOnlyList<OrderLine> OrderLines  { get; private set; } = default!;
-    public FulfilmentOrderStatus    Status      { get; private set; }
+    public FulfilmentOrderId        Id           { get; private set; }
+    public StoreId                  StoreId      { get; private set; }
+    public OrderId                  OrderId      { get; private set; }
+    public IReadOnlyList<OrderLine> OrderLines   { get; private set; } = default!;
+    public FulfilmentOrderStatus    Status       { get; private set; }
+
+    private List<SubStorePrepareReport> _prepareReports = [];
+
+    /// <summary>
+    /// The latest preparation report per prepare command.
+    /// See <see cref="RegisterContainers"/> for the last-write-wins semantics.
+    /// </summary>
+    public IReadOnlyList<SubStorePrepareReport> PrepareReports => _prepareReports.AsReadOnly();
 
     /// <summary>
     /// Optimistic concurrency version. Starts at 0 when first created;
@@ -113,6 +121,31 @@ public class FulfilmentOrder
         Status = FulfilmentOrderStatus.Allocated;
     }
 
+    /// <summary>
+    /// Records the containers received from a substore for a specific Prepare command.
+    ///
+    /// Last-write-wins: if a report for the same <paramref name="prepareCommandId"/> already
+    /// exists it is replaced entirely. Callers may invoke this multiple times as updated
+    /// reports arrive; only the most recent is retained.
+    /// </summary>
+    public void RegisterContainers(
+        string                    prepareCommandId,
+        string                    subStoreId,
+        IReadOnlyList<Container>  containers)
+    {
+        var existing = _prepareReports
+            .FirstOrDefault(r => r.PrepareCommandId == prepareCommandId);
+
+        if (existing is not null)
+            _prepareReports.Remove(existing);
+
+        _prepareReports.Add(new SubStorePrepareReport(
+            PrepareCommandId: prepareCommandId,
+            SubStoreId:       subStoreId,
+            Containers:       containers,
+            ReceivedAt:       DateTime.UtcNow));
+    }
+
     public void Cancel()
     {
         if (Status == FulfilmentOrderStatus.Cancelled)
@@ -126,19 +159,21 @@ public class FulfilmentOrder
     /// Not intended for use in domain logic or application services.
     /// </summary>
     public static FulfilmentOrder Rehydrate(
-        FulfilmentOrderId        id,
-        StoreId                  storeId,
-        OrderId                  orderId,
-        IReadOnlyList<OrderLine> orderLines,
-        FulfilmentOrderStatus    status,
-        int                      version) =>
+        FulfilmentOrderId                   id,
+        StoreId                             storeId,
+        OrderId                             orderId,
+        IReadOnlyList<OrderLine>            orderLines,
+        FulfilmentOrderStatus               status,
+        int                                 version,
+        IReadOnlyList<SubStorePrepareReport> prepareReports) =>
         new()
         {
-            Id         = id,
-            StoreId    = storeId,
-            OrderId    = orderId,
-            OrderLines = orderLines,
-            Status     = status,
-            Version    = version
+            Id              = id,
+            StoreId         = storeId,
+            OrderId         = orderId,
+            OrderLines      = orderLines,
+            Status          = status,
+            Version         = version,
+            _prepareReports = prepareReports.ToList()
         };
 }

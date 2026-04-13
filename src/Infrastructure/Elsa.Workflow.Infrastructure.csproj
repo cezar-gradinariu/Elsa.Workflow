@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Domain\Elsa.Workflow.Domain.csproj" />
+    <ProjectReference Include="..\Application\Elsa.Workflow.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

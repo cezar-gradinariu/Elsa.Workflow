@@ -9,9 +9,11 @@ using Elsa.Workflow.Api.Middleware;
 using Elsa.Workflow.Infrastructure.Extensions;
 using Elsa.Workflow.Application.Commands;
 using Elsa.Workflow.Application.Queries;
+using Elsa.Workflow.Application.ServiceBus;
 using Elsa.Workflow.Application.Workflows;
 using Elsa.Workflow.Domain.Repositories;
 using Elsa.Workflow.Infrastructure.Repositories;
+using Elsa.Workflow.Infrastructure.ServiceBus;
 using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,6 +46,14 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     IQueryHandler<GetFulfilmentOrderQuery, GetFulfilmentOrderResult>,
     GetFulfilmentOrderQueryHandler>();
+
+builder.Services.AddScoped<
+    ICommandHandler<RegisterPrepareReportCommand>,
+    RegisterPrepareReportCommandHandler>();
+
+// Service Bus sender — swap NoOpServiceBusSender for a real Azure implementation
+// once Azure.Messaging.ServiceBus is wired up in Infrastructure.
+builder.Services.AddScoped<IServiceBusSender, NoOpServiceBusSender>();
 
 // ─── Elsa Workflows ──────────────────────────────────────────────────────────
 var connectionString = builder.Configuration["MongoDB:ConnectionString"]!;
