@@ -1,4 +1,5 @@
 using Elsa.Extensions;
+using Elsa.Scheduling.Activities;
 using Elsa.Workflow.Application.Activities;
 using Elsa.Workflows;
 using Elsa.Workflows.Activities;
@@ -46,7 +47,7 @@ public class FulfilmentOrderWorkflow : WorkflowBase
                         ctx.SetVariable(FulfilmentOrderIdVar, val?.ToString());
                     return ValueTask.CompletedTask;
                 }),
-                new CallOfaActivity(),   // OFA HTTP call — Level-1 resilience via Elsa.Resilience
+                Delay.FromSeconds(5, "Wait 5 seconds"),
                 // TODO: ApplyAllocationActivity  — applies domain method + persists aggregate
                 // TODO: SuspendFulfilmentActivity — bookmark awaiting next trigger
             ]
