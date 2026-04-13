@@ -170,6 +170,11 @@ if (app.Environment.IsDevelopment())
 // <base href="/studio/"> in index.html).
 app.MapGet("/", () => Results.Redirect("/studio/"));
 
+// Elsa Studio navigates to the absolute path /login when unauthenticated.
+// With <base href="/studio/"> the Blazor router expects /studio/login, so
+// redirect the bare /login hit to the correct Studio-relative path.
+app.MapGet("/login", () => Results.Redirect("/studio/login"));
+
 // Serve Elsa Studio WASM static assets.
 // Two UseStaticFiles registrations are needed:
 //   1. Root (/): serves /_framework/, /_content/ etc. for direct/cached requests.
